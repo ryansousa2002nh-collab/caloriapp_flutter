@@ -1,25 +1,30 @@
-import 'package:flutter/material.dart';
-import '../services/api_service.dart';
-import '../services/dados_service.dart';
-import '../theme/app_theme.dart';
-import '../widgets/apple_theme_toggle.dart';
-import 'pacientes_page.dart';
-import 'refeicoes_page.dart';
+import 'package:flutter/material.dart'; //RESPONSÁVEL POR TODO MATERIAl DART.
+import '../services/api_service.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE API.
+import '../services/dados_service.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE DADOS.
+import '../theme/app_theme.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE THEME (DA PASTA TEMAS).
+import '../widgets/apple_theme_toggle.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE WIDGETS.
 
-class LoginPage extends StatefulWidget {
+import 'pacientes_page.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE PÁGINA DE PACIENTES.
+import 'refeicoes_page.dart'; //RESPONSÁVEL POR TODO O MATERIA DE PÁGINA DE REFEIÇÕES.
+import 'treinos_page.dart'; //RESPONSÁVEL PELO MÓDULO DE TREINOS.
+
+class LoginPage extends StatefulWidget { //É A TELA
   const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends State<LoginPage> { //É O QUE ESTÁ ACONTECENDO COM A TELA
   final _usernameController = TextEditingController(text: 'juliana.nutri');
   final _passwordController = TextEditingController(text: '123456');
 
   String _erro = '';
   bool _carregando = false;
+  String _servicoSelecionado = 'DIETA'; // Pode ser 'DIETA' ou 'TREINO'
+  bool _senhaOculta = true;
 
+  //FUTURE SIGNIFICA QUE A FUNÇÃO REALIZA ALGO QUE PODE DEMORAR (NO CASO O LOGIN).
   Future<void> _fazerLogin() async {
     setState(() {
       _erro = '';
@@ -28,7 +33,7 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final sucesso = await ApiService.login(
-        _usernameController.text.trim(),
+        _usernameController.text.trim(), //o trim() remove os espaços das extremidades
         _passwordController.text,
       );
 
@@ -36,7 +41,9 @@ class _LoginPageState extends State<LoginPage> {
 
       if (sucesso) {
         final tipo = await ApiService.getTipoUsuario() ?? 'NUTRI';
+        
         DadosService().setTipoUsuarioLogado(tipo);
+        await DadosService().carregarDadosDoBackend();
 
         if (!mounted) return;
         setState(() => _carregando = false);
@@ -47,56 +54,32 @@ class _LoginPageState extends State<LoginPage> {
             MaterialPageRoute(builder: (context) => const PacientesPage()),
           );
         } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const RefeicoesPage()),
-          );
+          if (_servicoSelecionado == 'TREINO') {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const TreinosPage()),
+            );
+          } else {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const RefeicoesPage()),
+            );
+          }
         }
-        return;
+      } else {
+        setState(() {
+          _erro = 'Usuário ou senha inválidos';
+          _carregando = false;
+        });
       }
     } catch (_) {
-      // Fallback para modo offline / demonstração
-    }
-
-    // Se o backend não estiver respondendo na porta 8001, permite login direto com o mock
-    final username = _usernameController.text.trim().toLowerCase();
-    final tipo = username.contains('paciente') || username.contains('ana') || username.contains('cliente')
-        ? 'CLIENTE'
-        : 'NUTRI';
-
-    DadosService().setTipoUsuarioLogado(tipo);
-
-    if (!mounted) return;
-    setState(() => _carregando = false);
-
-    if (tipo == 'NUTRI') {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const PacientesPage()),
-      );
-    } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const RefeicoesPage()),
-      );
+      setState(() {
+        _erro = 'Usuário ou senha inválidos'; 
+        _carregando = false;
+      });
     }
   }
 
-  void _entrarComoNutri() {
-    DadosService().setTipoUsuarioLogado('NUTRI');
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const PacientesPage()),
-    );
-  }
-
-  void _entrarComoPaciente() {
-    DadosService().setTipoUsuarioLogado('CLIENTE');
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const RefeicoesPage()),
-    );
-  }
 
   @override
   void dispose() {
@@ -173,12 +156,84 @@ class _LoginPageState extends State<LoginPage> {
 
                 TextField(
                   controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
+                  obscureText: _senhaOculta,
+                  decoration: InputDecoration(
                     labelText: 'Senha',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock),
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _senhaOculta ? Icons.visibility_off : Icons.visibility,
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _senhaOculta = !_senhaOculta;
+                        });
+                      },
+                    ),
                   ),
+                ),
+
+                const SizedBox(height: 16),
+                
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Escolha o serviço:',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: textoSecundario,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _servicoSelecionado = 'DIETA'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _servicoSelecionado == 'DIETA' ? AppColors.verde : Colors.transparent,
+                            border: Border.all(color: _servicoSelecionado == 'DIETA' ? AppColors.verde : Colors.grey.shade400),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'DIETA',
+                            style: TextStyle(
+                              color: _servicoSelecionado == 'DIETA' ? Colors.white : textoSecundario,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _servicoSelecionado = 'TREINO'),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _servicoSelecionado == 'TREINO' ? AppColors.verde : Colors.transparent,
+                            border: Border.all(color: _servicoSelecionado == 'TREINO' ? AppColors.verde : Colors.grey.shade400),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'TREINO',
+                            style: TextStyle(
+                              color: _servicoSelecionado == 'TREINO' ? Colors.white : textoSecundario,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
 
                 if (_erro.isNotEmpty) ...[
@@ -213,43 +268,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
 
-                const SizedBox(height: 24),
-                const Divider(),
-                const SizedBox(height: 12),
 
-                // Botões de Acesso Rápido de Demonstração
-                Text(
-                  'Acesso Rápido para Testes:',
-                  style: TextStyle(fontSize: 11, color: textoSecundario, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          side: const BorderSide(color: AppColors.verde),
-                        ),
-                        onPressed: _entrarComoNutri,
-                        icon: const Icon(Icons.medical_services_outlined, size: 16, color: AppColors.verde),
-                        label: const Text('Nutri', style: TextStyle(color: AppColors.verde, fontSize: 12, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          side: BorderSide(color: textoSecundario),
-                        ),
-                        onPressed: _entrarComoPaciente,
-                        icon: Icon(Icons.person_outline, size: 16, color: textoSecundario),
-                        label: Text('Paciente', style: TextStyle(color: textoSecundario, fontSize: 12, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),

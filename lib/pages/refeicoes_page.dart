@@ -19,8 +19,17 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
   @override
   void initState() {
     super.initState();
-    // No modo paciente, usamos o primeiro paciente como perfil atual
-    _paciente = _dadosService.getPacientes().first;
+    final pacientes = _dadosService.getPacientes();
+    if (pacientes.isNotEmpty) {
+      _paciente = pacientes.first;
+    } else {
+      _paciente = PacienteModel(
+        id: 0,
+        nome: 'Sem dados (Erro)',
+        usuario: 'erro',
+        statusFinanceiro: StatusFinanceiro.debito,
+      );
+    }
   }
 
   int get _totalConsumido => _paciente.totalCaloriasPlano;

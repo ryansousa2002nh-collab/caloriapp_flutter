@@ -28,6 +28,21 @@ class PacienteModel {
     List<RefeicaoModel>? planoAlimentar,
   }) : planoAlimentar = planoAlimentar ?? [];
 
+  factory PacienteModel.fromJson(Map<String, dynamic> json) {
+    var planoList = json['plano_alimentar'] as List? ?? [];
+    return PacienteModel(
+      id: json['id'],
+      nome: json['nome'] ?? json['username'] ?? '',
+      usuario: json['username'] ?? '',
+      email: json['email'],
+      fotoUrl: json['foto_url'],
+      statusFinanceiro: json['status_financeiro'] == 'pago' ? StatusFinanceiro.pago : StatusFinanceiro.debito,
+      valorMensalidade: double.tryParse(json['valor_mensalidade']?.toString() ?? '400') ?? 400.0,
+      metaCalorica: double.tryParse(json['meta_calorica']?.toString() ?? '2000') ?? 2000.0,
+      planoAlimentar: planoList.map((e) => RefeicaoModel.fromJson(e as Map<String, dynamic>)).toList(),
+    );
+  }
+
   bool get isPago => statusFinanceiro == StatusFinanceiro.pago;
   bool get isDebito => statusFinanceiro == StatusFinanceiro.debito;
 
