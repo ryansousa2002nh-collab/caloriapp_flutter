@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.0.103:8001/api/'; 
+  static const String baseUrl = 'http://192.168.0.102:8001/api/'; 
 
   // Faz login e salva o token se der certo
   static Future<bool> login(String username, String password) async {
@@ -101,5 +101,27 @@ class ApiService {
       headers: {'Authorization': 'Token $token'},
     );
     return response.statusCode == 204;
+  }
+
+  static Future<List<dynamic>> getExercicios() async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${baseUrl}exercicios/'),
+      headers: {'Authorization': 'Token $token'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    }
+    return [];
+  }
+
+  static Future<bool> salvarTreino(Map<String, dynamic> data) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${baseUrl}treinos/'),
+      headers: {'Authorization': 'Token $token', 'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    );
+    return response.statusCode == 201 || response.statusCode == 200;
   }
 }

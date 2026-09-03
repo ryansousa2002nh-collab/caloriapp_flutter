@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../pages/login_page.dart';
 import '../pages/pacientes_page.dart';
 import '../pages/refeicoes_page.dart';
+import '../pages/pacientes_treino_page.dart';
 import '../services/dados_service.dart';
 import '../theme/app_theme.dart';
 import 'apple_theme_toggle.dart';
@@ -144,6 +145,21 @@ class AppDrawer extends StatelessWidget {
                     ativo: paginaAtual == 'configuracoes',
                     onTap: () => Navigator.pop(context),
                   ),
+
+                  if (isNutri)
+                    _drawerItem(
+                      context,
+                      icone: Icons.fitness_center_outlined,
+                      texto: 'Acessar Módulo de Treino',
+                      ativo: paginaAtual == 'treino',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const PacientesTreinoPage()),
+                        );
+                      },
+                    ),
 
                   const SizedBox(height: 12),
                   const Divider(),

@@ -5,6 +5,7 @@ import '../theme/app_theme.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE THEME (D
 import '../widgets/apple_theme_toggle.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE WIDGETS.
 
 import 'pacientes_page.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE PÁGINA DE PACIENTES.
+import 'pacientes_treino_page.dart'; //RESPONSÁVEL PELOS ALUNOS DO PERSONAL
 import 'refeicoes_page.dart'; //RESPONSÁVEL POR TODO O MATERIA DE PÁGINA DE REFEIÇÕES.
 import 'treinos_page.dart'; //RESPONSÁVEL PELO MÓDULO DE TREINOS.
 
@@ -16,8 +17,8 @@ class LoginPage extends StatefulWidget { //É A TELA
 }
 
 class _LoginPageState extends State<LoginPage> { //É O QUE ESTÁ ACONTECENDO COM A TELA
-  final _usernameController = TextEditingController(text: 'juliana.nutri');
-  final _passwordController = TextEditingController(text: '123456');
+  final _usernameController = TextEditingController(text: 'paciente.teste');
+  final _passwordController = TextEditingController(text: '123'); 
 
   String _erro = '';
   bool _carregando = false;
@@ -48,7 +49,12 @@ class _LoginPageState extends State<LoginPage> { //É O QUE ESTÁ ACONTECENDO CO
         if (!mounted) return;
         setState(() => _carregando = false);
 
-        if (tipo == 'NUTRI' || tipo == 'PERSONAL') {
+        if (tipo == 'PERSONAL') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const PacientesTreinoPage()),
+          );
+        } else if (tipo == 'NUTRI') {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const PacientesPage()),
