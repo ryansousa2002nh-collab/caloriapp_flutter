@@ -5,6 +5,8 @@ import '../theme/app_theme.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/apple_theme_toggle.dart';
 import 'criar_dieta_page.dart';
+import '../services/api_service.dart';
+import '../utils/date_formatter.dart';
 
 class PacientesPage extends StatefulWidget {
   const PacientesPage({super.key});
@@ -49,6 +51,18 @@ class _PacientesPageState extends State<PacientesPage> {
             icon: const Icon(Icons.refresh),
             tooltip: 'Atualizar',
             onPressed: () => setState(() {}),
+          ),
+          IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: AppColors.verde,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(Icons.person_add, color: Colors.white, size: 20),
+            ),
+            tooltip: 'Adicionar paciente',
+            onPressed: _abrirModalAdicionarPaciente,
           ),
         ],
       ),
@@ -490,6 +504,139 @@ class _PacientesPageState extends State<PacientesPage> {
           ],
         ),
       ),
+    );
+  }
+
+  void _abrirModalAdicionarPaciente() {
+    final nomeController = TextEditingController();
+    final dataNascimentoController = TextEditingController();
+    final emailController = TextEditingController();
+    bool carregando = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.getCard(context),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Adicionar Paciente',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.getTextoPrincipal(context),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Faça o pré-cadastro para o paciente criar sua conta no aplicativo.',
+                    style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 13),
+                  ),
+                  const SizedBox(height: 24),
+                  TextField(
+                    controller: nomeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome Completo',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: 'E-mail do Paciente',
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: dataNascimentoController,
+                    keyboardType: TextInputType.datetime,
+                    inputFormatters: [DateInputFormatter()],
+                    decoration: const InputDecoration(
+                      labelText: 'Data de Nascimento (DD/MM/AAAA)',
+                      prefixIcon: Icon(Icons.calendar_today),
+                      hintText: 'Ex: 24/05/1990',
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton(
+                      onPressed: carregando
+                          ? null
+                          : () async {
+                              final nome = nomeController.text.trim();
+                              final email = emailController.text.trim();
+                              var data = dataNascimentoController.text.trim();
+
+                              if (nome.isEmpty || email.isEmpty || data.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Preencha todos os campos')),
+                                );
+                                return;
+                              }
+
+                              // Converter DD/MM/AAAA para AAAA-MM-DD pro backend
+                              if (data.contains('/')) {
+                                final parts = data.split('/');
+                                if (parts.length == 3) {
+                                  data = '${parts[2]}-${parts[1]}-${parts[0]}';
+                                }
+                              }
+
+                              setModalState(() => carregando = true);
+                              final sucesso = await ApiService.preCadastrarPaciente(nome, email, data);
+                              setModalState(() => carregando = false);
+
+                              if (!context.mounted) return;
+
+                              if (sucesso) {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Paciente cadastrado com sucesso!'),
+                                    backgroundColor: AppColors.verde,
+                                  ),
+                                );
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Erro ao cadastrar paciente. Verifique os dados.'),
+                                    backgroundColor: AppColors.vermelho,
+                                  ),
+                                );
+                              }
+                            },
+                      child: carregando
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : const Text('Cadastrar'),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

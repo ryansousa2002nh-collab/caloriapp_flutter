@@ -26,32 +26,19 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
   late List<RefeicaoModel> _refeicoes;
 
   // Estado do formulário de refeição
-  String? _tipoSelecionado;
+  String _tipo = 'Café da manhã';
   String _horario = '08:00';
+  String _observacoes = '';
   List<ItemRefeicaoModel> _ingredientesForm = [
     ItemRefeicaoModel(alimentoNome: BancoAlimentos.lista.first.nome, gramas: 100),
   ];
   int? _indiceEmEdicao; // null = nova refeição, número = editando refeição existente
-
-  final List<String> _tiposRefeicao = [
-    'Café da manhã',
-    'Lanche da manhã',
-    'Almoço',
-    'Lanche da tarde',
-    'Pré-treino',
-    'Pós-treino',
-    'Jantar',
-    'Ceia',
-  ];
 
   @override
   void initState() {
     super.initState();
     _metaCalorica = widget.paciente.metaCalorica;
     _refeicoes = List.from(widget.paciente.planoAlimentar);
-    if (_tipoSelecionado == null && _tiposRefeicao.isNotEmpty) {
-      _tipoSelecionado = _tiposRefeicao.first;
-    }
   }
 
   int get _totalConsumido =>
@@ -77,10 +64,13 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
     });
   }
 
+  bool _salvando = false;
+
   void _limparFormulario() {
     setState(() {
-      _tipoSelecionado = _tiposRefeicao.first;
+      _tipo = '';
       _horario = '08:00';
+      _observacoes = '';
       _ingredientesForm = [
         ItemRefeicaoModel(alimentoNome: BancoAlimentos.lista.first.nome, gramas: 100),
       ];
@@ -88,14 +78,14 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
     });
   }
 
-  void _salvarRefeicao() {
+  Future<void> _salvarRefeicao() async {
     if (!widget.isNutri) {
       _mostrarAviso('Apenas a nutricionista pode cadastrar ou alterar refeições.');
       return;
     }
 
-    if (_tipoSelecionado == null || _tipoSelecionado!.isEmpty) {
-      _mostrarAviso('Selecione o tipo de refeição.');
+    if (_tipo.isEmpty) {
+      _mostrarAviso('Escreva o tipo de refeição.');
       return;
     }
 
@@ -109,24 +99,29 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
     }
 
     setState(() {
-      final refeicaoAtualizada = RefeicaoModel(
-        id: _indiceEmEdicao != null
-            ? _refeicoes[_indiceEmEdicao!].id
-            : 'ref_${DateTime.now().millisecondsSinceEpoch}',
-        tipo: _tipoSelecionado!,
-        horarioSugerido: _horario,
-        itens: itensValidos.map((i) => i.copyWith()).toList(),
-      );
+      _salvando = true;
+    });
 
-      if (_indiceEmEdicao != null) {
-        _refeicoes[_indiceEmEdicao!] = refeicaoAtualizada;
-        _dadosService.salvarRefeicao(widget.paciente.id, refeicaoAtualizada);
-        _mostrarAviso('Refeição "$_tipoSelecionado" atualizada com sucesso!');
-      } else {
-        _refeicoes.add(refeicaoAtualizada);
-        _dadosService.salvarRefeicao(widget.paciente.id, refeicaoAtualizada);
-        _mostrarAviso('Refeição "$_tipoSelecionado" adicionada ao plano!');
-      }
+    final refeicaoAtualizada = RefeicaoModel(
+      id: _indiceEmEdicao != null
+          ? _refeicoes[_indiceEmEdicao!].id
+          : 'ref_${DateTime.now().millisecondsSinceEpoch}',
+      tipo: _tipo,
+      horarioSugerido: _horario,
+      observacoes: _observacoes.isNotEmpty ? _observacoes : null,
+      itens: itensValidos.map((i) => i.copyWith()).toList(),
+    );
+
+    await _dadosService.salvarRefeicao(widget.paciente.id, refeicaoAtualizada);
+
+    if (!mounted) return;
+
+    setState(() {
+      _refeicoes = List.from(widget.paciente.planoAlimentar);
+      _salvando = false;
+      _mostrarAviso(_indiceEmEdicao != null 
+          ? 'Refeição "$_tipo" atualizada com sucesso!' 
+          : 'Refeição "$_tipo" adicionada ao plano!');
     });
 
     _limparFormulario();
@@ -135,8 +130,9 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
   void _editarRefeicao(int index) {
     final refeicao = _refeicoes[index];
     setState(() {
-      _tipoSelecionado = refeicao.tipo;
+      _tipo = refeicao.tipo;
       _horario = refeicao.horarioSugerido ?? '08:00';
+      _observacoes = refeicao.observacoes ?? '';
       _ingredientesForm = refeicao.itens.map((i) => i.copyWith()).toList();
       _indiceEmEdicao = index;
     });
@@ -457,23 +453,23 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                         children: [
                           Expanded(
                             flex: 3,
-                            child: DropdownButtonFormField<String>(
-                              initialValue: _tipoSelecionado,
+                            child: TextFormField(
+                              key: ValueKey('tipo_${_indiceEmEdicao ?? "novo"}'),
+                              initialValue: _tipo,
                               decoration: const InputDecoration(
                                 labelText: 'Tipo de refeição',
+                                hintText: 'Ex: Almoço',
                                 border: OutlineInputBorder(),
                                 isDense: true,
                               ),
-                              items: _tiposRefeicao
-                                  .map((tipo) => DropdownMenuItem(value: tipo, child: Text(tipo)))
-                                  .toList(),
-                              onChanged: (valor) => setState(() => _tipoSelecionado = valor),
+                              onChanged: (valor) => _tipo = valor,
                             ),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
                             flex: 2,
                             child: TextFormField(
+                              key: ValueKey('horario_${_indiceEmEdicao ?? "novo"}'),
                               initialValue: _horario,
                               decoration: const InputDecoration(
                                 labelText: 'Horário',
@@ -493,14 +489,17 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Alimentos & Quantidades',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                              color: AppColors.getTextoPrincipal(context),
+                          Expanded(
+                            child: Text(
+                              'Alimentos & Quantidades',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                                color: AppColors.getTextoPrincipal(context),
+                              ),
                             ),
                           ),
+                          const SizedBox(width: 4),
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.getVerdeDestaque(context),
@@ -542,21 +541,24 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Total desta refeição:',
-                                  style: TextStyle(
-                                    color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
-                                    fontSize: 12,
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Total desta refeição:',
+                                    style: TextStyle(
+                                      color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                                      fontSize: 12,
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  'Cálculo automático em tempo real',
-                                  style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 10),
-                                ),
-                              ],
+                                  Text(
+                                    'Cálculo automático em tempo real',
+                                    style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 10),
+                                    overflow: TextOverflow.visible,
+                                  ),
+                                ],
+                              ),
                             ),
                             Text(
                               '$_totalFormAtual kcal',
@@ -572,15 +574,34 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
 
                       const SizedBox(height: 14),
 
+                      TextFormField(
+                        key: ValueKey('obs_${_indiceEmEdicao ?? "novo"}'),
+                        initialValue: _observacoes,
+                        decoration: const InputDecoration(
+                          labelText: 'Observações (Substituições, modo de preparo...)',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 2,
+                        onChanged: (valor) => _observacoes = valor,
+                      ),
+
+                      const SizedBox(height: 14),
+
                       // Botão de Salvar Refeição
                       ElevatedButton(
-                        onPressed: _salvarRefeicao,
-                        child: Text(
-                          _indiceEmEdicao != null
-                              ? 'Salvar Alterações da Refeição'
-                              : 'Adicionar Refeição ao Plano',
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
+                        onPressed: _salvando ? null : _salvarRefeicao,
+                        child: _salvando
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : Text(
+                                _indiceEmEdicao != null
+                                    ? 'Salvar Alterações da Refeição'
+                                    : 'Adicionar Refeição ao Plano',
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                              ),
                       ),
                     ],
                   ),
@@ -726,6 +747,7 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
               Expanded(
                 flex: 5,
                 child: DropdownButtonFormField<String>(
+                  key: ObjectKey(item),
                   initialValue: item.alimentoNome,
                   isExpanded: true,
                   decoration: const InputDecoration(
@@ -757,6 +779,7 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
               Expanded(
                 flex: 3,
                 child: TextFormField(
+                  key: ValueKey('${item.hashCode}_gramas'),
                   initialValue: item.gramas == 0 ? '' : item.gramas.toStringAsFixed(0),
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
@@ -790,13 +813,17 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
           // Sub-linha indicando calorias resultantes daquele alimento
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                item.alimentoObj?.porcaoSugerida != null
-                    ? 'Sugestão: ${item.alimentoObj!.porcaoSugerida}'
-                    : '',
-                style: TextStyle(fontSize: 10, color: AppColors.getTextoSecundario(context)),
+              Expanded(
+                child: Text(
+                  item.alimentoObj?.porcaoSugerida != null
+                      ? 'Sugestão: ${item.alimentoObj!.porcaoSugerida}'
+                      : '',
+                  style: TextStyle(fontSize: 10, color: AppColors.getTextoSecundario(context)),
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
@@ -834,40 +861,52 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: AppColors.getVerdeDestaque(context),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Icon(
-                        Icons.restaurant,
-                        size: 16,
-                        color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          refeicao.tipo,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                            color: AppColors.getTextoPrincipal(context),
-                          ),
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppColors.getVerdeDestaque(context),
+                          borderRadius: BorderRadius.circular(6),
                         ),
-                        if (refeicao.horarioSugerido != null)
-                          Text(
-                            'Horário sugerido: ${refeicao.horarioSugerido}',
-                            style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 11),
-                          ),
-                      ],
-                    ),
-                  ],
+                        child: Icon(
+                          Icons.restaurant,
+                          size: 16,
+                          color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              refeicao.tipo,
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                color: AppColors.getTextoPrincipal(context),
+                              ),
+                            ),
+                            if (refeicao.horarioSugerido != null)
+                              Text(
+                                'Horário sugerido: ${refeicao.horarioSugerido}',
+                                style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 11),
+                              ),
+                            if (refeicao.observacoes != null && refeicao.observacoes!.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  'Obs: ${refeicao.observacoes}',
+                                  style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 11, fontStyle: FontStyle.italic),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 if (widget.isNutri)
                   Row(

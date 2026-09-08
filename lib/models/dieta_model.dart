@@ -56,12 +56,14 @@ class RefeicaoModel {
   final String id;
   String tipo; // Ex: 'Café da manhã', 'Almoço', 'Jantar'
   String? horarioSugerido; // Ex: '07:30'
+  String? observacoes;
   List<ItemRefeicaoModel> itens;
 
   RefeicaoModel({
     required this.id,
     required this.tipo,
     this.horarioSugerido,
+    this.observacoes,
     required this.itens,
   });
 
@@ -71,6 +73,7 @@ class RefeicaoModel {
       id: json['id'].toString(),
       tipo: json['tipo'] ?? '',
       horarioSugerido: json['horario_sugerido'],
+      observacoes: json['observacoes'],
       itens: itensList.map((e) => ItemRefeicaoModel.fromJson(e as Map<String, dynamic>)).toList(),
     );
   }
@@ -79,6 +82,7 @@ class RefeicaoModel {
     return {
       'tipo': tipo,
       'horario_sugerido': horarioSugerido,
+      'observacoes': observacoes,
       'itens': itens.map((e) => e.toJson()).toList(),
     };
   }
@@ -89,12 +93,14 @@ class RefeicaoModel {
     String? id,
     String? tipo,
     String? horarioSugerido,
+    String? observacoes,
     List<ItemRefeicaoModel>? itens,
   }) {
     return RefeicaoModel(
       id: id ?? this.id,
       tipo: tipo ?? this.tipo,
       horarioSugerido: horarioSugerido ?? this.horarioSugerido,
+      observacoes: observacoes ?? this.observacoes,
       itens: itens != null ? List<ItemRefeicaoModel>.from(itens) : this.itens,
     );
   }

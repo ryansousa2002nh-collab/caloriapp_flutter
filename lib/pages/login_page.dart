@@ -2,12 +2,11 @@ import 'package:flutter/material.dart'; //RESPONSÁVEL POR TODO MATERIAl DART.
 import '../services/api_service.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE API.
 import '../services/dados_service.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE DADOS.
 import '../theme/app_theme.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE THEME (DA PASTA TEMAS).
-import '../widgets/apple_theme_toggle.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE WIDGETS.
-
 import 'pacientes_page.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE PÁGINA DE PACIENTES.
 import 'pacientes_treino_page.dart'; //RESPONSÁVEL PELOS ALUNOS DO PERSONAL
 import 'refeicoes_page.dart'; //RESPONSÁVEL POR TODO O MATERIA DE PÁGINA DE REFEIÇÕES.
 import 'treinos_page.dart'; //RESPONSÁVEL PELO MÓDULO DE TREINOS.
+import 'cadastro_page.dart'; //RESPONSÁVEL PELO CADASTRO DE NOVOS PACIENTES
 
 class LoginPage extends StatefulWidget { //É A TELA
   const LoginPage({super.key});
@@ -104,12 +103,6 @@ class _LoginPageState extends State<LoginPage> { //É O QUE ESTÁ ACONTECENDO CO
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 12.0),
-            child: AppleThemeToggle(size: 30, showBackground: true),
-          ),
-        ],
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -274,6 +267,24 @@ class _LoginPageState extends State<LoginPage> { //É O QUE ESTÁ ACONTECENDO CO
                   ),
                 ),
 
+                const SizedBox(height: 16),
+
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const CadastroPage()),
+                    );
+                  },
+                  child: Text(
+                    'Cadastrar-se',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.verde,
+                    ),
+                  ),
+                ),
 
               ],
             ),

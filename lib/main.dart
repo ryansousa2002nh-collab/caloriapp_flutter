@@ -9,6 +9,22 @@ void main() async {
   runApp(const MyApp());
 }
 
+class BlueGlowScrollBehavior extends ScrollBehavior {
+  const BlueGlowScrollBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(
+      BuildContext context, Widget child, ScrollableDetails details) {
+    return GlowingOverscrollIndicator(
+      axisDirection: details.direction,
+      color: Colors.blue.shade200,
+      showLeading: true,
+      showTrailing: true,
+      child: child,
+    );
+  }
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -23,6 +39,14 @@ class MyApp extends StatelessWidget {
           theme: lightTheme,
           darkTheme: darkTheme,
           themeMode: ThemeController.instance.themeMode,
+          scrollBehavior: const BlueGlowScrollBehavior(),
+          builder: (context, child) => SafeArea(
+            top: false,
+            left: false,
+            right: false,
+            bottom: true,
+            child: child!,
+          ),
           home: const LoginPage(),
         );
       },

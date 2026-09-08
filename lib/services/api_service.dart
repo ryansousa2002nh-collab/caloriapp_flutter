@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.0.102:8001/api/'; 
+  static const String baseUrl = 'http://192.168.0.103:8001/api/'; 
 
   // Faz login e salva o token se der certo
   static Future<bool> login(String username, String password) async {
@@ -123,5 +123,68 @@ class ApiService {
       body: jsonEncode(data),
     );
     return response.statusCode == 201 || response.statusCode == 200;
+  }
+
+  static Future<List<dynamic>> getMeusTreinos() async {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('${baseUrl}treinos/'),
+      headers: {'Authorization': 'Token $token'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    }
+    return [];
+  }
+
+  static Future<bool> marcarTreinoConcluido(int treinoId) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${baseUrl}treinos/$treinoId/concluir/'),
+      headers: {'Authorization': 'Token $token'},
+    );
+    return response.statusCode == 201 || response.statusCode == 200;
+  }
+
+  static Future<bool> preCadastrarPaciente(String nome, String email, String dataNascimento) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${baseUrl}precadastro/'),
+      headers: {'Authorization': 'Token $token', 'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'nome': nome,
+        'email': email,
+        'data_nascimento': dataNascimento
+      }),
+    );
+    return response.statusCode == 201;
+  }
+
+  static Future<bool> validarCadastro(String nome, String email, String dataNascimento) async {
+    final response = await http.post(
+      Uri.parse('${baseUrl}cadastro/validar/'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'nome': nome,
+        'email': email,
+        'data_nascimento': dataNascimento
+      }),
+    );
+    return response.statusCode == 200;
+  }
+
+  static Future<bool> finalizarCadastro(String nome, String email, String dataNascimento, String username, String senha) async {
+    final response = await http.post(
+      Uri.parse('${baseUrl}cadastro/finalizar/'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'nome': nome,
+        'email': email,
+        'data_nascimento': dataNascimento,
+        'username': username,
+        'senha': senha
+      }),
+    );
+    return response.statusCode == 201;
   }
 }
