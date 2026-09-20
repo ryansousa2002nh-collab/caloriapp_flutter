@@ -33,12 +33,13 @@ class _AppleThemeToggleState extends State<AppleThemeToggle>
     super.initState();
     final isDark = ThemeController.instance.isDarkMode;
 
-    // Se isDark == true, biteProgress = 0.0 (maçã inteira)
-    // Se isDark == false (modo claro), biteProgress = 1.0 (maçã mordida)
+    // Ícone representa a ação de destino:
+    // Se isDark == true (noturno), mostra maçã mordida (ação pra ir pro claro).
+    // Se isDark == false (claro), mostra maçã inteira (ação pra ir pro escuro).
     _animController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
-      value: isDark ? 0.0 : 1.0,
+      value: isDark ? 1.0 : 0.0,
     );
 
     _biteAnimation = CurvedAnimation(
@@ -58,9 +59,9 @@ class _AppleThemeToggleState extends State<AppleThemeToggle>
   void _onThemeChanged() {
     final isDark = ThemeController.instance.isDarkMode;
     if (isDark) {
-      _animController.reverse(); // Volta para maçã inteira
+      _animController.forward(); // Transiciona para maçã mordida (destino: claro)
     } else {
-      _animController.forward(); // Transiciona para maçã mordida
+      _animController.reverse(); // Volta para maçã inteira (destino: escuro)
     }
   }
 
@@ -83,8 +84,8 @@ class _AppleThemeToggleState extends State<AppleThemeToggle>
       builder: (context, _) {
         final isDark = ThemeController.instance.isDarkMode;
         final tooltip = isDark
-            ? 'Modo Noturno ativo (Clique para Modo Claro - Maçã Mordida)'
-            : 'Modo Claro ativo (Clique para Modo Noturno - Maçã Inteira)';
+            ? 'Modo Noturno ativo (Clique para Modo Claro)'
+            : 'Modo Claro ativo (Clique para Modo Noturno)';
 
         Widget appleWidget = AnimatedBuilder(
           animation: _animController,
@@ -166,7 +167,7 @@ class AppleThemeDrawerTile extends StatelessWidget {
               ),
             ),
             subtitle: Text(
-              isDark ? 'Maçã inteira • Toque para modo claro' : 'Maçã mordida • Toque para modo noturno',
+              isDark ? 'Toque para modo claro' : 'Toque para modo noturno',
               style: TextStyle(
                 color: isDark ? AppColors.textoSecundarioEscuro : AppColors.textoSecundario,
                 fontSize: 11,

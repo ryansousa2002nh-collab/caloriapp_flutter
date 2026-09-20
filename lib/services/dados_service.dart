@@ -1,5 +1,6 @@
 import '../models/dieta_model.dart';
 import '../models/paciente_model.dart';
+import '../models/registro_diario_model.dart';
 import 'api_service.dart';
 
 class DadosService {
@@ -29,8 +30,38 @@ class DadosService {
       final jsonList = await ApiService.getPacientes();
       _pacientes.clear();
       _pacientes.addAll(jsonList.map((e) => PacienteModel.fromJson(e)).toList());
+      
+      // Carregar registros de hoje para todos os pacientes (ou para o paciente logado)
+      await carregarRegistrosDiariosHoje();
     } catch (e) {
       // Caso dê erro, os dados ficarão vazios (ou usar cache local no futuro)
+    }
+  }
+
+  Future<void> carregarRegistrosDiariosHoje() async {
+    final hoje = DateTime.now().toIso8601String().split('T').first;
+    for (var p in _pacientes) {
+      try {
+        final regs = await ApiService.getRegistrosDiarios(hoje, pacienteId: p.id);
+        p.registrosDiarios = regs.map((e) => RegistroDiarioModel.fromJson(e)).toList();
+      } catch (_) {}
+    }
+  }
+
+  Future<void> salvarRegistroDiario(int pacienteId, Map<String, dynamic> data) async {
+    final savedData = await ApiService.salvarRegistroDiario(data);
+    if (savedData != null) {
+      final paciente = getPacientePorId(pacienteId);
+      if (paciente != null) {
+        final newReg = RegistroDiarioModel.fromJson(savedData);
+        // Atualiza ou insere o registro no paciente
+        final index = paciente.registrosDiarios.indexWhere((r) => r.id == newReg.id);
+        if (index >= 0) {
+          paciente.registrosDiarios[index] = newReg;
+        } else {
+          paciente.registrosDiarios.add(newReg);
+        }
+      }
     }
   }
 

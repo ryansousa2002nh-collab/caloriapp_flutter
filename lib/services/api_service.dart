@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.0.103:8001/api/'; 
+  static const String baseUrl = 'http://192.168.0.107:8001/api/'; 
 
   // Faz login e salva o token se der certo
   static Future<bool> login(String username, String password) async {
@@ -186,5 +186,34 @@ class ApiService {
       }),
     );
     return response.statusCode == 201;
+  }
+
+  static Future<List<dynamic>> getRegistrosDiarios(String dataStr, {int? pacienteId}) async {
+    final token = await getToken();
+    String url = '${baseUrl}registros_diarios/?data=$dataStr';
+    if (pacienteId != null) {
+      url += '&paciente=$pacienteId';
+    }
+    final response = await http.get(
+      Uri.parse(url),
+      headers: {'Authorization': 'Token $token'},
+    );
+    if (response.statusCode == 200) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    }
+    return [];
+  }
+
+  static Future<Map<String, dynamic>?> salvarRegistroDiario(Map<String, dynamic> data) async {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('${baseUrl}registros_diarios/'),
+      headers: {'Authorization': 'Token $token', 'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    );
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(utf8.decode(response.bodyBytes));
+    }
+    return null;
   }
 }

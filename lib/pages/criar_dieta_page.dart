@@ -41,8 +41,7 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
     _refeicoes = List.from(widget.paciente.planoAlimentar);
   }
 
-  int get _totalConsumido =>
-      _refeicoes.fold(0, (soma, r) => soma + r.totalCalorias);
+  int get _totalConsumido => widget.paciente.totalCaloriasConsumidasHoje;
 
   int get _totalFormAtual =>
       _ingredientesForm.fold(0, (soma, i) => soma + i.calorias);

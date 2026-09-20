@@ -347,7 +347,7 @@ class _PacientesPageState extends State<PacientesPage> {
                         Icon(Icons.local_fire_department, size: 13, color: Colors.orange.shade700),
                         const SizedBox(width: 3),
                         Text(
-                          'Meta: ${paciente.metaCalorica.toStringAsFixed(0)} kcal',
+                          'Consumido Hoje: ${paciente.totalCaloriasConsumidasHoje} / ${paciente.metaCalorica.toStringAsFixed(0)} kcal',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,

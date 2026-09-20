@@ -1,4 +1,5 @@
 import 'dieta_model.dart';
+import 'registro_diario_model.dart';
 
 enum StatusFinanceiro {
   pago,
@@ -15,6 +16,7 @@ class PacienteModel {
   double valorMensalidade;
   double metaCalorica;
   List<RefeicaoModel> planoAlimentar;
+  List<RegistroDiarioModel> registrosDiarios;
 
   PacienteModel({
     required this.id,
@@ -26,7 +28,9 @@ class PacienteModel {
     this.valorMensalidade = 400.0,
     this.metaCalorica = 2000.0,
     List<RefeicaoModel>? planoAlimentar,
-  }) : planoAlimentar = planoAlimentar ?? [];
+    List<RegistroDiarioModel>? registrosDiarios,
+  }) : planoAlimentar = planoAlimentar ?? [],
+       registrosDiarios = registrosDiarios ?? [];
 
   factory PacienteModel.fromJson(Map<String, dynamic> json) {
     var planoList = json['plano_alimentar'] as List? ?? [];
@@ -40,6 +44,7 @@ class PacienteModel {
       valorMensalidade: double.tryParse(json['valor_mensalidade']?.toString() ?? '400') ?? 400.0,
       metaCalorica: double.tryParse(json['meta_calorica']?.toString() ?? '2000') ?? 2000.0,
       planoAlimentar: planoList.map((e) => RefeicaoModel.fromJson(e as Map<String, dynamic>)).toList(),
+      registrosDiarios: [], // Será preenchido separadamente através da API de registros
     );
   }
 
@@ -57,7 +62,13 @@ class PacienteModel {
   int get totalCaloriasPlano =>
       planoAlimentar.fold(0, (soma, ref) => soma + ref.totalCalorias);
 
-  double get caloriasRestantes => metaCalorica - totalCaloriasPlano;
+  int get totalCaloriasConsumidasHoje {
+    if (registrosDiarios.isEmpty) return 0;
+    // O primeiro registro é o mais recente ou do dia atual (se ordenado)
+    return registrosDiarios.first.totalCalorias;
+  }
+
+  double get caloriasRestantes => metaCalorica - totalCaloriasConsumidasHoje;
 
   PacienteModel copyWith({
     int? id,
@@ -80,6 +91,7 @@ class PacienteModel {
       valorMensalidade: valorMensalidade ?? this.valorMensalidade,
       metaCalorica: metaCalorica ?? this.metaCalorica,
       planoAlimentar: planoAlimentar ?? List.from(this.planoAlimentar),
+      registrosDiarios: registrosDiarios ?? List.from(this.registrosDiarios),
     );
   }
 }
