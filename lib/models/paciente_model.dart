@@ -80,6 +80,7 @@ class PacienteModel {
     double? valorMensalidade,
     double? metaCalorica,
     List<RefeicaoModel>? planoAlimentar,
+    List<RegistroDiarioModel>? registrosDiarios,
   }) {
     return PacienteModel(
       id: id ?? this.id,

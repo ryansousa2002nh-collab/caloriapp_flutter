@@ -1,30 +1,42 @@
-import 'package:flutter/material.dart'; //RESPONSÁVEL POR TODO MATERIAl DART.
-import '../services/api_service.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE API.
-import '../services/dados_service.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE DADOS.
-import '../theme/app_theme.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE THEME (DA PASTA TEMAS).
-import 'pacientes_page.dart'; //RESPONSÁVEL POR TODO O MATERIAl DE PÁGINA DE PACIENTES.
-import 'pacientes_treino_page.dart'; //RESPONSÁVEL PELOS ALUNOS DO PERSONAL
-import 'refeicoes_page.dart'; //RESPONSÁVEL POR TODO O MATERIA DE PÁGINA DE REFEIÇÕES.
-import 'treinos_page.dart'; //RESPONSÁVEL PELO MÓDULO DE TREINOS.
-import 'cadastro_page.dart'; //RESPONSÁVEL PELO CADASTRO DE NOVOS PACIENTES
+import 'package:flutter/material.dart';
+import '../services/api_service.dart';
+import '../services/dados_service.dart';
+import '../theme/app_theme.dart';
+import 'pacientes_page.dart';
+import 'pacientes_treino_page.dart';
+import 'refeicoes_page.dart';
+import 'treinos_page.dart';
+import 'cadastro_page.dart';
 
-class LoginPage extends StatefulWidget { //É A TELA
+enum UserRole { personal, nutri, paciente }
+enum ServiceType { dieta, treino }
+
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> { //É O QUE ESTÁ ACONTECENDO COM A TELA
+class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
   final _usernameController = TextEditingController(text: 'paciente.teste');
   final _passwordController = TextEditingController(text: '123'); 
 
   String _erro = '';
   bool _carregando = false;
-  String _servicoSelecionado = 'DIETA'; // Pode ser 'DIETA' ou 'TREINO'
+  ServiceType _servicoSelecionado = ServiceType.dieta;
   bool _senhaOculta = true;
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
 
-  //FUTURE SIGNIFICA QUE A FUNÇÃO REALIZA ALGO QUE PODE DEMORAR (NO CASO O LOGIN).
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
+    _animationController.forward();
+  }
+
   Future<void> _fazerLogin() async {
     setState(() {
       _erro = '';
@@ -33,42 +45,29 @@ class _LoginPageState extends State<LoginPage> { //É O QUE ESTÁ ACONTECENDO CO
 
     try {
       final sucesso = await ApiService.login(
-        _usernameController.text.trim(), //o trim() remove os espaços das extremidades
+        _usernameController.text.trim(),
         _passwordController.text,
       );
 
       if (!mounted) return;
 
       if (sucesso) {
-        final tipo = await ApiService.getTipoUsuario() ?? 'NUTRI';
-        
-        DadosService().setTipoUsuarioLogado(tipo);
+        final tipoStr = await ApiService.getTipoUsuario() ?? 'NUTRI';
+        DadosService().setTipoUsuarioLogado(tipoStr);
         await DadosService().carregarDadosDoBackend();
 
         if (!mounted) return;
         setState(() => _carregando = false);
 
-        if (tipo == 'PERSONAL') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const PacientesTreinoPage()),
-          );
-        } else if (tipo == 'NUTRI') {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const PacientesPage()),
-          );
+        if (tipoStr == 'PERSONAL') {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const PacientesTreinoPage()));
+        } else if (tipoStr == 'NUTRI') {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const PacientesPage()));
         } else {
-          if (_servicoSelecionado == 'TREINO') {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const TreinosPage()),
-            );
+          if (_servicoSelecionado == ServiceType.treino) {
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TreinosPage()));
           } else {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const RefeicoesPage()),
-            );
+            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const RefeicoesPage()));
           }
         }
       } else {
@@ -85,208 +84,138 @@ class _LoginPageState extends State<LoginPage> { //É O QUE ESTÁ ACONTECENDO CO
     }
   }
 
-
   @override
   void dispose() {
+    _animationController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
+  Widget _buildServiceOption(ServiceType type, String label, IconData icon) {
+    final isSelected = _servicoSelecionado == type;
+    final theme = Theme.of(context);
+    
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _servicoSelecionado = type),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: isSelected ? theme.primaryColor : Colors.transparent,
+            border: Border.all(color: isSelected ? theme.primaryColor : theme.colorScheme.outline),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: isSelected ? Colors.white : theme.colorScheme.onSurface.withOpacity(0.6)),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : theme.colorScheme.onSurface.withOpacity(0.7),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final textoPrincipal = AppColors.getTextoPrincipal(context);
-    final textoSecundario = AppColors.getTextoSecundario(context);
-    final fundoDestaque = AppColors.getVerdeDestaque(context);
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
       body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: SizedBox(
-            width: 340,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Logo / Título
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: fundoDestaque,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.eco,
-                    size: 44,
-                    color: AppColors.verde,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'CaloriApp',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    color: textoPrincipal,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Gestão Nutricional & Controle Calórico',
-                  style: TextStyle(color: textoSecundario, fontSize: 13),
-                ),
-
-                const SizedBox(height: 28),
-
-                TextField(
-                  controller: _usernameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Usuário',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.person),
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _senhaOculta,
-                  decoration: InputDecoration(
-                    labelText: 'Senha',
-                    border: const OutlineInputBorder(),
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _senhaOculta ? Icons.visibility_off : Icons.visibility,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _senhaOculta = !_senhaOculta;
-                        });
-                      },
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            child: SizedBox(
+              width: 360,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: theme.primaryColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
                     ),
+                    child: Icon(Icons.eco_rounded, size: 56, color: theme.primaryColor),
                   ),
-                ),
-
-                const SizedBox(height: 16),
-                
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Escolha o serviço:',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: textoSecundario,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _servicoSelecionado = 'DIETA'),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _servicoSelecionado == 'DIETA' ? AppColors.verde : Colors.transparent,
-                            border: Border.all(color: _servicoSelecionado == 'DIETA' ? AppColors.verde : Colors.grey.shade400),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'DIETA',
-                            style: TextStyle(
-                              color: _servicoSelecionado == 'DIETA' ? Colors.white : textoSecundario,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _servicoSelecionado = 'TREINO'),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _servicoSelecionado == 'TREINO' ? AppColors.verde : Colors.transparent,
-                            border: Border.all(color: _servicoSelecionado == 'TREINO' ? AppColors.verde : Colors.grey.shade400),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            'TREINO',
-                            style: TextStyle(
-                              color: _servicoSelecionado == 'TREINO' ? Colors.white : textoSecundario,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                if (_erro.isNotEmpty) ...[
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.lg),
+                  Text('CaloriApp', style: theme.textTheme.titleLarge?.copyWith(fontSize: 32)),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
-                    _erro,
-                    style: const TextStyle(color: AppColors.vermelho, fontSize: 12),
-                    textAlign: TextAlign.center,
+                    'Alcance seus resultados.',
+                    style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 16),
                   ),
-                ],
+                  const SizedBox(height: AppSpacing.xl),
 
-                const SizedBox(height: 18),
+                  TextField(
+                    controller: _usernameController,
+                    decoration: const InputDecoration(
+                      labelText: 'Usuário',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextField(
+                    controller: _passwordController,
+                    obscureText: _senhaOculta,
+                    decoration: InputDecoration(
+                      labelText: 'Senha',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(_senhaOculta ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                        onPressed: () => setState(() => _senhaOculta = !_senhaOculta),
+                      ),
+                    ),
+                  ),
 
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
+                  const SizedBox(height: AppSpacing.lg),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Qual o seu foco hoje?',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface.withOpacity(0.7)),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Row(
+                    children: [
+                      _buildServiceOption(ServiceType.dieta, 'DIETA', Icons.restaurant),
+                      const SizedBox(width: AppSpacing.md),
+                      _buildServiceOption(ServiceType.treino, 'TREINO', Icons.fitness_center),
+                    ],
+                  ),
+
+                  if (_erro.isNotEmpty) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text(_erro, style: TextStyle(color: theme.colorScheme.error, fontSize: 14), textAlign: TextAlign.center),
+                  ],
+
+                  const SizedBox(height: AppSpacing.xl),
+                  ElevatedButton(
                     onPressed: _carregando ? null : _fazerLogin,
                     child: _carregando
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Text(
-                            'Entrar',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                          ),
+                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                        : const Text('Entrar'),
                   ),
-                ),
-
-                const SizedBox(height: 16),
-
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const CadastroPage()),
-                    );
-                  },
-                  child: Text(
-                    'Cadastrar-se',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.verde,
-                    ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextButton(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const CadastroPage())),
+                    child: Text('Não tem conta? Cadastre-se', style: TextStyle(color: theme.primaryColor, fontWeight: FontWeight.w600)),
                   ),
-                ),
-
-              ],
+                ],
+              ),
             ),
           ),
         ),

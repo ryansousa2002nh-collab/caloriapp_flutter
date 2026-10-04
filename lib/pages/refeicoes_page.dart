@@ -17,6 +17,8 @@ class RefeicoesPage extends StatefulWidget {
 class _RefeicoesPageState extends State<RefeicoesPage> {
   final DadosService _dadosService = DadosService();
   late PacienteModel _paciente;
+  DateTime _dataSelecionada = DateTime.now();
+  bool _carregandoData = false;
 
   @override
   void initState() {
@@ -38,7 +40,32 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
     }
   }
 
-  int get _totalConsumido => _paciente.totalCaloriasConsumidasHoje;
+  int get _totalConsumido => _paciente.registrosDiarios.isNotEmpty ? _paciente.registrosDiarios.first.totalCalorias : 0;
+
+  Future<void> _mudarData(BuildContext context) async {
+    final DateTime? novaData = await showDatePicker(
+      context: context,
+      initialDate: _dataSelecionada,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now(),
+    );
+
+    if (novaData != null && novaData != _dataSelecionada) {
+      setState(() {
+        _dataSelecionada = novaData;
+        _carregandoData = true;
+      });
+
+      await _dadosService.carregarRegistrosDiarios(novaData.toIso8601String().split('T').first);
+      _carregarPaciente();
+      
+      if (mounted) {
+        setState(() {
+          _carregandoData = false;
+        });
+      }
+    }
+  }
 
   void _tentarEditarMeta() {
     showDialog(
@@ -71,7 +98,21 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Minhas Refeições', style: TextStyle(fontWeight: FontWeight.w700)),
+          title: GestureDetector(
+            onTap: () => _mudarData(context),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _dataSelecionada.day == DateTime.now().day && _dataSelecionada.month == DateTime.now().month
+                      ? 'Hoje'
+                      : '${_dataSelecionada.day.toString().padLeft(2, '0')}/${_dataSelecionada.month.toString().padLeft(2, '0')}',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                const Icon(Icons.arrow_drop_down),
+              ],
+            ),
+          ),
           actions: const [
             AppleThemeToggle(size: 28),
             SizedBox(width: 8),
@@ -412,7 +453,7 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
 
   void _salvarConsumo(String refeicaoId, String alimentoNome, double gramas, String observacoes) async {
     // Obter ou criar o registro de hoje
-    String dataHoje = DateTime.now().toIso8601String().split('T').first;
+    String dataHoje = _dataSelecionada.toIso8601String().split('T').first;
     
     Map<String, dynamic> data = {
       'usuario_id': _paciente.id,

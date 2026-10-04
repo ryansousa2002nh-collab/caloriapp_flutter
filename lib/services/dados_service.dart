@@ -32,17 +32,16 @@ class DadosService {
       _pacientes.addAll(jsonList.map((e) => PacienteModel.fromJson(e)).toList());
       
       // Carregar registros de hoje para todos os pacientes (ou para o paciente logado)
-      await carregarRegistrosDiariosHoje();
+      await carregarRegistrosDiarios(DateTime.now().toIso8601String().split('T').first);
     } catch (e) {
       // Caso dê erro, os dados ficarão vazios (ou usar cache local no futuro)
     }
   }
 
-  Future<void> carregarRegistrosDiariosHoje() async {
-    final hoje = DateTime.now().toIso8601String().split('T').first;
+  Future<void> carregarRegistrosDiarios(String data) async {
     for (var p in _pacientes) {
       try {
-        final regs = await ApiService.getRegistrosDiarios(hoje, pacienteId: p.id);
+        final regs = await ApiService.getRegistrosDiarios(data, pacienteId: p.id);
         p.registrosDiarios = regs.map((e) => RegistroDiarioModel.fromJson(e)).toList();
       } catch (_) {}
     }
