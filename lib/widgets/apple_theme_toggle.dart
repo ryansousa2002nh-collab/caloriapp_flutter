@@ -273,33 +273,6 @@ class ApplePainter extends CustomPainter {
       ).createShader(Rect.fromLTWH(0, 0, w, h));
 
     canvas.drawPath(finalBodyPath, bodyPaint);
-
-    // 7. Brilho especular (Gloss) no ombro esquerdo
-    final glossPath = Path();
-    glossPath.moveTo(w * 0.22, h * 0.38);
-    glossPath.cubicTo(w * 0.16, h * 0.48, w * 0.18, h * 0.62, w * 0.26, h * 0.72);
-
-    final glossPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.35)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = (w * 0.06).clamp(1.2, 2.5)
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawPath(glossPath, glossPaint);
-
-    // 8. Borda clara da polpa exposta da maçã na mordida
-    if (biteProgress > 0.05) {
-      final fleshPaint = Paint()
-        ..color = const Color(0xFFFEF3C7).withValues(alpha: (biteProgress * 0.95).clamp(0.0, 1.0))
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = (w * 0.04).clamp(1.0, 2.0)
-        ..strokeCap = StrokeCap.round;
-
-      canvas.save();
-      canvas.clipPath(applePath);
-      canvas.drawPath(bitePath, fleshPaint);
-      canvas.restore();
-    }
   }
 
   @override

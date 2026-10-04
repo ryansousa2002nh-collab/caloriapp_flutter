@@ -346,12 +346,15 @@ class _PacientesPageState extends State<PacientesPage> {
                       children: [
                         Icon(Icons.local_fire_department, size: 13, color: Colors.orange.shade700),
                         const SizedBox(width: 3),
-                        Text(
-                          'Consumido Hoje: ${paciente.totalCaloriasConsumidasHoje} / ${paciente.metaCalorica.toStringAsFixed(0)} kcal',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? AppColors.textoSecundarioEscuro : Colors.grey.shade700,
+                        Expanded(
+                          child: Text(
+                            'Consumido Hoje: ${paciente.totalCaloriasConsumidasHoje} / ${paciente.metaCalorica.toStringAsFixed(0)} kcal',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? AppColors.textoSecundarioEscuro : Colors.grey.shade700,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],

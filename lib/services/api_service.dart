@@ -1,9 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.0.107:8001/api/'; 
+  static String get baseUrl {
+    if (kIsWeb) return 'http://127.0.0.1:8001/api/';
+    if (Platform.isAndroid) return 'http://10.0.2.2:8001/api/';
+    return 'http://127.0.0.1:8001/api/';
+  } 
 
   // Faz login e salva o token se der certo
   static Future<bool> login(String username, String password) async {
@@ -204,13 +210,23 @@ class ApiService {
     return [];
   }
 
-  static Future<Map<String, dynamic>?> salvarRegistroDiario(Map<String, dynamic> data) async {
+  static Future<Map<String, dynamic>?> salvarRegistroDiario(Map<String, dynamic> data, {String? id}) async {
     final token = await getToken();
-    final response = await http.post(
-      Uri.parse('${baseUrl}registros_diarios/'),
-      headers: {'Authorization': 'Token $token', 'Content-Type': 'application/json'},
-      body: jsonEncode(data),
-    );
+    http.Response response;
+    if (id != null && id.isNotEmpty) {
+      response = await http.put(
+        Uri.parse('${baseUrl}registros_diarios/$id/'),
+        headers: {'Authorization': 'Token $token', 'Content-Type': 'application/json'},
+        body: jsonEncode(data),
+      );
+    } else {
+      response = await http.post(
+        Uri.parse('${baseUrl}registros_diarios/'),
+        headers: {'Authorization': 'Token $token', 'Content-Type': 'application/json'},
+        body: jsonEncode(data),
+      );
+    }
+    
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(utf8.decode(response.bodyBytes));
     }

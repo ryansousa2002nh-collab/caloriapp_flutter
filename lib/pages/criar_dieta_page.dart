@@ -5,6 +5,7 @@ import '../models/paciente_model.dart';
 import '../services/dados_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/apple_theme_toggle.dart';
+import 'historico_page.dart';
 
 class CriarDietaPage extends StatefulWidget {
   final PacienteModel paciente;
@@ -336,6 +337,34 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                     ),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Botão para ver Histórico e Metas
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.bar_chart),
+                label: Text(widget.isNutri ? 'Ver Histórico e Metas do Paciente' : 'Meu Histórico e Metas'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.getVerdeDestaque(context),
+                  foregroundColor: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => HistoricoPage(
+                        paciente: widget.paciente,
+                        isNutri: widget.isNutri,
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
             const SizedBox(height: 16),

@@ -3,6 +3,9 @@ import '../pages/login_page.dart';
 import '../pages/pacientes_page.dart';
 import '../pages/refeicoes_page.dart';
 import '../pages/pacientes_treino_page.dart';
+import '../pages/historico_page.dart';
+import '../pages/financeiro_page.dart';
+import '../pages/configuracoes_page.dart';
 import '../services/dados_service.dart';
 import '../theme/app_theme.dart';
 import 'apple_theme_toggle.dart';
@@ -127,7 +130,15 @@ class AppDrawer extends StatelessWidget {
                     icone: Icons.bar_chart_outlined,
                     texto: 'Histórico & Metas',
                     ativo: paginaAtual == 'historico',
-                    onTap: () => Navigator.pop(context),
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (paginaAtual != 'historico') {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => const HistoricoPage()),
+                        );
+                      }
+                    },
                   ),
 
                   _drawerItem(
@@ -135,7 +146,15 @@ class AppDrawer extends StatelessWidget {
                     icone: Icons.attach_money_outlined,
                     texto: 'Financeiro',
                     ativo: paginaAtual == 'financeiro',
-                    onTap: () => Navigator.pop(context),
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (paginaAtual != 'financeiro') {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => const FinanceiroPage()),
+                        );
+                      }
+                    },
                   ),
 
                   _drawerItem(
@@ -143,7 +162,15 @@ class AppDrawer extends StatelessWidget {
                     icone: Icons.settings_outlined,
                     texto: 'Configurações',
                     ativo: paginaAtual == 'configuracoes',
-                    onTap: () => Navigator.pop(context),
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (paginaAtual != 'configuracoes') {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ConfiguracoesPage()),
+                        );
+                      }
+                    },
                   ),
 
                   if (isNutri)

@@ -7,6 +7,12 @@ import '../theme/app_theme.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/apple_theme_toggle.dart';
 
+class _IngredienteForm {
+  String alimentoNome = '';
+  int quantidadeGramas = 100;
+  String observacoes = '';
+}
+
 class RefeicoesPage extends StatefulWidget {
   const RefeicoesPage({super.key});
 
@@ -310,10 +316,7 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
 
   void _showAddRegistroDialog() {
     String? refeicaoSelecionada;
-    String alimentoNome = '';
-    String quantidade = '100';
-    int quantidadeGramas = 100;
-    String observacoes = '';
+    List<_IngredienteForm> ingredientes = [_IngredienteForm()];
 
     showDialog(
       context: context,
@@ -322,111 +325,146 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
           builder: (context, setStateDialog) {
             return AlertDialog(
               title: const Text('Registrar Consumo'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'Refeição (Prescrita)'),
-                      value: refeicaoSelecionada,
-                      items: [
-                        ..._paciente.planoAlimentar.map((e) {
-                          return DropdownMenuItem(
-                            value: e.id,
-                            child: Text(e.tipo),
-                          );
-                        }),
-                        const DropdownMenuItem(
-                          value: 'outros',
-                          child: Text('Outros (Refeição Adicional)'),
-                        ),
-                      ],
-                      onChanged: (val) => setStateDialog(() => refeicaoSelecionada = val),
-                    ),
-                    const SizedBox(height: 12),
-                    Autocomplete<String>(
-                      optionsBuilder: (TextEditingValue textEditingValue) {
-                        if (textEditingValue.text.isEmpty) {
-                          return BancoAlimentos.lista.map((e) => e.nome);
-                        }
-                        return BancoAlimentos.lista
-                            .where((e) => e.nome.toLowerCase().contains(textEditingValue.text.toLowerCase()))
-                            .map((e) => e.nome);
-                      },
-                      onSelected: (String val) => alimentoNome = val,
-                      fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
-                        return TextField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          onEditingComplete: onEditingComplete,
-                          decoration: const InputDecoration(
-                            labelText: 'Alimento consumido',
-                            hintText: 'Digite para buscar ou insira novo',
+              content: SizedBox(
+                width: double.maxFinite,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        decoration: const InputDecoration(labelText: 'Refeição (Prescrita)'),
+                        value: refeicaoSelecionada,
+                        items: [
+                          ..._paciente.planoAlimentar.map((e) {
+                            return DropdownMenuItem(
+                              value: e.id,
+                              child: Text(e.tipo),
+                            );
+                          }),
+                          const DropdownMenuItem(
+                            value: 'outros',
+                            child: Text('Outros (Refeição Adicional)'),
                           ),
-                          onChanged: (val) => alimentoNome = val,
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    (refeicaoSelecionada == 'outros' || refeicaoSelecionada == null)
-                        ? TextField(
-                            decoration: const InputDecoration(labelText: 'Quantidade (g)'),
-                            keyboardType: TextInputType.number,
-                            onChanged: (val) => quantidade = val,
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 10),
-                              Text(
-                                'Quantidade consumida:',
-                                style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 13),
-                              ),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.remove_circle_outline, size: 28),
-                                    color: Colors.red,
-                                    onPressed: () {
-                                      setStateDialog(() {
-                                        if (quantidadeGramas > 10) quantidadeGramas -= 10;
-                                        quantidade = quantidadeGramas.toString();
-                                      });
-                                    },
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                                    child: Text(
-                                      '${quantidadeGramas}g',
-                                      style: TextStyle(
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.getTextoPrincipal(context),
+                        ],
+                        onChanged: (val) => setStateDialog(() => refeicaoSelecionada = val),
+                      ),
+                      const SizedBox(height: 16),
+                      ...List.generate(ingredientes.length, (index) {
+                        final ing = ingredientes[index];
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 0,
+                          color: Theme.of(context).primaryColor.withOpacity(0.05),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Theme.of(context).primaryColor.withOpacity(0.2)),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('Alimento ${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    if (ingredientes.length > 1)
+                                      IconButton(
+                                        icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                        onPressed: () {
+                                          setStateDialog(() => ingredientes.removeAt(index));
+                                        },
                                       ),
+                                  ],
+                                ),
+                                Autocomplete<String>(
+                                  optionsBuilder: (TextEditingValue textEditingValue) {
+                                    if (textEditingValue.text.isEmpty) {
+                                      return BancoAlimentos.lista.map((e) => e.nome);
+                                    }
+                                    return BancoAlimentos.lista
+                                        .where((e) => e.nome.toLowerCase().contains(textEditingValue.text.toLowerCase()))
+                                        .map((e) => e.nome);
+                                  },
+                                  onSelected: (String val) => ing.alimentoNome = val,
+                                  fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
+                                    return TextField(
+                                      controller: controller,
+                                      focusNode: focusNode,
+                                      onEditingComplete: onEditingComplete,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Nome do Alimento',
+                                        hintText: 'Digite para buscar',
+                                      ),
+                                      onChanged: (val) => ing.alimentoNome = val,
+                                    );
+                                  },
+                                ),
+                                const SizedBox(height: 12),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      'Quantidade consumida:',
+                                      style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.6), fontSize: 13),
                                     ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.add_circle_outline, size: 28),
-                                    color: Colors.green,
-                                    onPressed: () {
-                                      setStateDialog(() {
-                                        quantidadeGramas += 10;
-                                        quantidade = quantidadeGramas.toString();
-                                      });
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ],
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.remove_circle_outline, size: 28),
+                                          color: Colors.red,
+                                          onPressed: () {
+                                            setStateDialog(() {
+                                              if (ing.quantidadeGramas > 10) ing.quantidadeGramas -= 10;
+                                            });
+                                          },
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                          child: Text(
+                                            '${ing.quantidadeGramas}g',
+                                            style: TextStyle(
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                              color: Theme.of(context).textTheme.bodyLarge?.color,
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.add_circle_outline, size: 28),
+                                          color: Colors.green,
+                                          onPressed: () {
+                                            setStateDialog(() {
+                                              ing.quantidadeGramas += 10;
+                                            });
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  decoration: const InputDecoration(labelText: 'Observações (Opcional)'),
+                                  onChanged: (val) => ing.observacoes = val,
+                                ),
+                              ],
+                            ),
                           ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      decoration: const InputDecoration(labelText: 'Observações (Opcional)'),
-                      onChanged: (val) => observacoes = val,
-                    ),
-                  ],
+                        );
+                      }),
+                      TextButton.icon(
+                        onPressed: () {
+                          setStateDialog(() => ingredientes.add(_IngredienteForm()));
+                        },
+                        icon: const Icon(Icons.add),
+                        label: const Text('Adicionar mais um alimento'),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               actions: [
@@ -436,12 +474,13 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                 ),
                 ElevatedButton(
                   onPressed: () {
-                    if (refeicaoSelecionada != null && alimentoNome.isNotEmpty && quantidade.isNotEmpty) {
-                      _salvarConsumo(refeicaoSelecionada!, alimentoNome, double.tryParse(quantidade) ?? 0, observacoes);
+                    final validos = ingredientes.where((i) => i.alimentoNome.isNotEmpty && i.quantidadeGramas > 0).toList();
+                    if (refeicaoSelecionada != null && validos.isNotEmpty) {
+                      _salvarConsumoEmMassa(refeicaoSelecionada!, validos);
                       Navigator.pop(context);
                     }
                   },
-                  child: const Text('Salvar'),
+                  child: const Text('Salvar Tudo'),
                 ),
               ],
             );
@@ -451,38 +490,34 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
     );
   }
 
-  void _salvarConsumo(String refeicaoId, String alimentoNome, double gramas, String observacoes) async {
-    // Obter ou criar o registro de hoje
+  void _salvarConsumoEmMassa(String refeicaoId, List<_IngredienteForm> ingredientes) async {
     String dataHoje = _dataSelecionada.toIso8601String().split('T').first;
     
     Map<String, dynamic> data = {
       'usuario_id': _paciente.id,
       'data': dataHoje,
-      'itens': [
-        {
+      'itens': ingredientes.map((ing) {
+        int cal100 = BancoAlimentos.buscarCaloriasPor100g(ing.alimentoNome);
+        return {
           'refeicao_planejada': int.tryParse(refeicaoId),
-          'alimento_nome': alimentoNome,
-          'quantidade_gramas': gramas,
-          'observacoes': observacoes.isEmpty ? null : observacoes,
-        }
-      ]
+          'alimento_nome': ing.alimentoNome,
+          'quantidade_gramas': ing.quantidadeGramas,
+          'calorias_manual': ((cal100 * ing.quantidadeGramas) / 100).round(),
+          'observacoes': ing.observacoes.isEmpty ? null : ing.observacoes,
+        };
+      }).toList()
     };
 
-    // Para adicionar ao invés de sobrescrever o dia inteiro
     if (_paciente.registrosDiarios.isNotEmpty && _paciente.registrosDiarios.first.data == dataHoje) {
       final r = _paciente.registrosDiarios.first;
+      data['id'] = r.id; // Adicionado ID para realizar PUT na API
       List<Map<String, dynamic>> itensData = r.itens.map((i) => i.toJson()).toList();
-      itensData.add({
-        'refeicao_planejada': int.tryParse(refeicaoId),
-        'alimento_nome': alimentoNome,
-        'quantidade_gramas': gramas,
-        'observacoes': observacoes.isEmpty ? null : observacoes,
-      });
+      itensData.addAll(data['itens'] as List<Map<String, dynamic>>);
       data['itens'] = itensData;
     }
 
     await _dadosService.salvarRegistroDiario(_paciente.id, data);
-    setState(() {}); // Atualizar a tela
+    setState(() {});
   }
 
   Widget _summaryCard(

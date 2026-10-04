@@ -39,7 +39,7 @@ class ItemRegistroDiarioModel {
       'refeicao_planejada': refeicaoPlanejadaId,
       'alimento_nome': alimentoNome,
       'quantidade_gramas': gramas,
-      'calorias_manual': caloriasManual,
+      'calorias_manual': calorias,
       'observacoes': observacoes,
     };
   }

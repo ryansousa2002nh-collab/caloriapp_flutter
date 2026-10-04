@@ -48,7 +48,7 @@ class DadosService {
   }
 
   Future<void> salvarRegistroDiario(int pacienteId, Map<String, dynamic> data) async {
-    final savedData = await ApiService.salvarRegistroDiario(data);
+    final savedData = await ApiService.salvarRegistroDiario(data, id: data['id']?.toString());
     if (savedData != null) {
       final paciente = getPacientePorId(pacienteId);
       if (paciente != null) {

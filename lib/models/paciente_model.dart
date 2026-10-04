@@ -1,5 +1,6 @@
 import 'dieta_model.dart';
 import 'registro_diario_model.dart';
+import 'metas_model.dart';
 
 enum StatusFinanceiro {
   pago,
@@ -17,6 +18,7 @@ class PacienteModel {
   double metaCalorica;
   List<RefeicaoModel> planoAlimentar;
   List<RegistroDiarioModel> registrosDiarios;
+  MetasModel metas;
 
   PacienteModel({
     required this.id,
@@ -29,8 +31,10 @@ class PacienteModel {
     this.metaCalorica = 2000.0,
     List<RefeicaoModel>? planoAlimentar,
     List<RegistroDiarioModel>? registrosDiarios,
+    MetasModel? metas,
   }) : planoAlimentar = planoAlimentar ?? [],
-       registrosDiarios = registrosDiarios ?? [];
+       registrosDiarios = registrosDiarios ?? [],
+       metas = metas ?? MetasModel();
 
   factory PacienteModel.fromJson(Map<String, dynamic> json) {
     var planoList = json['plano_alimentar'] as List? ?? [];
@@ -81,6 +85,7 @@ class PacienteModel {
     double? metaCalorica,
     List<RefeicaoModel>? planoAlimentar,
     List<RegistroDiarioModel>? registrosDiarios,
+    MetasModel? metas,
   }) {
     return PacienteModel(
       id: id ?? this.id,
@@ -93,6 +98,7 @@ class PacienteModel {
       metaCalorica: metaCalorica ?? this.metaCalorica,
       planoAlimentar: planoAlimentar ?? List.from(this.planoAlimentar),
       registrosDiarios: registrosDiarios ?? List.from(this.registrosDiarios),
+      metas: metas ?? this.metas,
     );
   }
 }
