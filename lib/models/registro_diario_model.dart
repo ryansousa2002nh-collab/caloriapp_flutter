@@ -45,9 +45,9 @@ class ItemRegistroDiarioModel {
   }
 
   int get calorias {
-    if (caloriasTotaisAPI != null) return caloriasTotaisAPI!;
-    if (alimentoNome == null || gramas <= 0) return 0;
+    if (caloriasTotaisAPI != null && caloriasTotaisAPI! > 0) return caloriasTotaisAPI!;
     if (caloriasManual != null && caloriasManual! > 0) return caloriasManual!;
+    if (alimentoNome == null || gramas <= 0) return 0;
     final cal100g = BancoAlimentos.buscarCaloriasPor100g(alimentoNome!);
     return ((cal100g * gramas) / 100).round();
   }
@@ -82,5 +82,5 @@ class RegistroDiarioModel {
     };
   }
 
-  int get totalCalorias => totalCaloriasAPI ?? itens.fold(0, (soma, item) => soma + item.calorias);
+  int get totalCalorias => (totalCaloriasAPI != null && totalCaloriasAPI! > 0) ? totalCaloriasAPI! : itens.fold(0, (soma, item) => soma + item.calorias);
 }

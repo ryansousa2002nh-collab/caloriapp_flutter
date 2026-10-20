@@ -176,7 +176,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
       title: Text(titulo, style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.getTextoPrincipal(context))),
       subtitle: Text(subtitulo, style: TextStyle(fontSize: 12, color: AppColors.getTextoSecundario(context))),
       value: valor,
-      activeColor: AppColors.verde,
+      activeTrackColor: AppColors.verde,
       onChanged: onChanged,
     );
   }

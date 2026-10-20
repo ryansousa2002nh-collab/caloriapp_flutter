@@ -15,7 +15,7 @@ class DadosService {
   String _tipoUsuarioLogado = 'NUTRI'; // 'NUTRI' ou 'CLIENTE'
 
   String get tipoUsuarioLogado => _tipoUsuarioLogado;
-  bool get isNutri => _tipoUsuarioLogado == 'NUTRI' || _tipoUsuarioLogado == 'PERSONAL';
+  bool get isNutri => _tipoUsuarioLogado == 'NUTRI';
 
   void setTipoUsuarioLogado(String tipo) {
     _tipoUsuarioLogado = tipo;

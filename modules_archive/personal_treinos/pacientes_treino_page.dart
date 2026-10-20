@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import '../models/paciente_model.dart';
-import '../services/dados_service.dart';
-import '../theme/app_theme.dart';
-import '../widgets/apple_theme_toggle.dart';
+
+import '../../modulos_arquivados/models/paciente_model.dart';
+import '../../modulos_arquivados/services/dados_service.dart';
+import '../../modulos_arquivados/theme/app_theme.dart';
+import '../../modulos_arquivados/widgets/apple_theme_toggle.dart';
 import 'criar_treino_page.dart';
-import 'login_page.dart';
+import '../../modulos_arquivados/personal_treinos/login_page.dart';
 
 class PacientesTreinoPage extends StatefulWidget {
   const PacientesTreinoPage({super.key});
@@ -19,7 +20,8 @@ class _PacientesTreinoPageState extends State<PacientesTreinoPage> {
 
   List<PacienteModel> get _pacientesFiltrados {
     return _dadosService.getPacientes().where((paciente) {
-      final matchesTexto = paciente.nome.toLowerCase().contains(_filtroTexto.toLowerCase()) ||
+      final matchesTexto =
+          paciente.nome.toLowerCase().contains(_filtroTexto.toLowerCase()) ||
           paciente.usuario.toLowerCase().contains(_filtroTexto.toLowerCase());
       return matchesTexto;
     }).toList();
@@ -50,7 +52,7 @@ class _PacientesTreinoPageState extends State<PacientesTreinoPage> {
                 MaterialPageRoute(builder: (context) => const LoginPage()),
               );
             },
-          )
+          ),
         ],
       ),
       body: RefreshIndicator(
@@ -78,23 +80,38 @@ class _PacientesTreinoPageState extends State<PacientesTreinoPage> {
                     TextField(
                       decoration: InputDecoration(
                         hintText: 'Buscar aluno...',
-                        hintStyle: TextStyle(color: AppColors.getTextoSecundario(context)),
-                        prefixIcon: Icon(Icons.search, color: AppColors.getTextoSecundario(context)),
+                        hintStyle: TextStyle(
+                          color: AppColors.getTextoSecundario(context),
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search,
+                          color: AppColors.getTextoSecundario(context),
+                        ),
                         filled: true,
                         fillColor: AppColors.getCard(context),
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: AppColors.getBorda(context)),
+                          borderSide: BorderSide(
+                            color: AppColors.getBorda(context),
+                          ),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: AppColors.getBorda(context)),
+                          borderSide: BorderSide(
+                            color: AppColors.getBorda(context),
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: AppColors.verde, width: 1.5),
+                          borderSide: const BorderSide(
+                            color: AppColors.verde,
+                            width: 1.5,
+                          ),
                         ),
                       ),
                       onChanged: (valor) {
@@ -117,7 +134,11 @@ class _PacientesTreinoPageState extends State<PacientesTreinoPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.person_search_outlined, size: 56, color: Colors.grey.shade400),
+                            Icon(
+                              Icons.person_search_outlined,
+                              size: 56,
+                              color: Colors.grey.shade400,
+                            ),
                             const SizedBox(height: 12),
                             Text(
                               'Nenhum aluno encontrado',
@@ -135,13 +156,10 @@ class _PacientesTreinoPageState extends State<PacientesTreinoPage> {
                 : SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
                     sliver: SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final paciente = _pacientesFiltrados[index];
-                          return _buildPacienteCard(paciente, isDark);
-                        },
-                        childCount: _pacientesFiltrados.length,
-                      ),
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final paciente = _pacientesFiltrados[index];
+                        return _buildPacienteCard(paciente, isDark);
+                      }, childCount: _pacientesFiltrados.length),
                     ),
                   ),
           ],
@@ -170,11 +188,17 @@ class _PacientesTreinoPageState extends State<PacientesTreinoPage> {
               // Avatar
               CircleAvatar(
                 radius: 26,
-                backgroundColor: isDark ? AppColors.verdeFundoEscuro : AppColors.verdeClaro,
+                backgroundColor: isDark
+                    ? AppColors.verdeFundoEscuro
+                    : AppColors.verdeClaro,
                 child: Text(
-                  paciente.nome.isNotEmpty ? paciente.nome[0].toUpperCase() : 'P',
+                  paciente.nome.isNotEmpty
+                      ? paciente.nome[0].toUpperCase()
+                      : 'P',
                   style: TextStyle(
-                    color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                    color: isDark
+                        ? const Color(0xFF6EE7B7)
+                        : AppColors.verdeEscuro,
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
                   ),

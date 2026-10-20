@@ -3,13 +3,8 @@ import '../services/api_service.dart';
 import '../services/dados_service.dart';
 import '../theme/app_theme.dart';
 import 'pacientes_page.dart';
-import 'pacientes_treino_page.dart';
 import 'refeicoes_page.dart';
-import 'treinos_page.dart';
 import 'cadastro_page.dart';
-
-enum UserRole { personal, nutri, paciente }
-enum ServiceType { dieta, treino }
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -24,7 +19,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
 
   String _erro = '';
   bool _carregando = false;
-  ServiceType _servicoSelecionado = ServiceType.dieta;
   bool _senhaOculta = true;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -59,16 +53,10 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         if (!mounted) return;
         setState(() => _carregando = false);
 
-        if (tipoStr == 'PERSONAL') {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const PacientesTreinoPage()));
-        } else if (tipoStr == 'NUTRI') {
+        if (tipoStr == 'NUTRI') {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const PacientesPage()));
         } else {
-          if (_servicoSelecionado == ServiceType.treino) {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const TreinosPage()));
-          } else {
-            Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const RefeicoesPage()));
-          }
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const RefeicoesPage()));
         }
       } else {
         setState(() {
@@ -92,41 +80,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
     super.dispose();
   }
 
-  Widget _buildServiceOption(ServiceType type, String label, IconData icon) {
-    final isSelected = _servicoSelecionado == type;
-    final theme = Theme.of(context);
-    
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _servicoSelecionado = type),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: isSelected ? theme.primaryColor : Colors.transparent,
-            border: Border.all(color: isSelected ? theme.primaryColor : theme.colorScheme.outline),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 18, color: isSelected ? Colors.white : theme.colorScheme.onSurface.withOpacity(0.6)),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : theme.colorScheme.onSurface.withOpacity(0.7),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -145,7 +98,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: theme.primaryColor.withOpacity(0.1),
+                      color: theme.primaryColor.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(Icons.eco_rounded, size: 56, color: theme.primaryColor),
@@ -154,8 +107,8 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                   Text('CaloriApp', style: theme.textTheme.titleLarge?.copyWith(fontSize: 32)),
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    'Alcance seus resultados.',
-                    style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 16),
+                    'Alcance seus resultados nutricionais.',
+                    style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 16),
                   ),
                   const SizedBox(height: AppSpacing.xl),
 
@@ -178,23 +131,6 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                         onPressed: () => setState(() => _senhaOculta = !_senhaOculta),
                       ),
                     ),
-                  ),
-
-                  const SizedBox(height: AppSpacing.lg),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Qual o seu foco hoje?',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface.withOpacity(0.7)),
-                    ),
-                  ),
-                  const SizedBox(height: AppSpacing.sm),
-                  Row(
-                    children: [
-                      _buildServiceOption(ServiceType.dieta, 'DIETA', Icons.restaurant),
-                      const SizedBox(width: AppSpacing.md),
-                      _buildServiceOption(ServiceType.treino, 'TREINO', Icons.fitness_center),
-                    ],
                   ),
 
                   if (_erro.isNotEmpty) ...[

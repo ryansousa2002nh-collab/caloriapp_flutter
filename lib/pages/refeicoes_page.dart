@@ -24,7 +24,6 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
   final DadosService _dadosService = DadosService();
   late PacienteModel _paciente;
   DateTime _dataSelecionada = DateTime.now();
-  bool _carregandoData = false;
 
   @override
   void initState() {
@@ -59,16 +58,13 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
     if (novaData != null && novaData != _dataSelecionada) {
       setState(() {
         _dataSelecionada = novaData;
-        _carregandoData = true;
       });
 
       await _dadosService.carregarRegistrosDiarios(novaData.toIso8601String().split('T').first);
       _carregarPaciente();
       
       if (mounted) {
-        setState(() {
-          _carregandoData = false;
-        });
+        setState(() {});
       }
     }
   }
@@ -334,7 +330,7 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                       DropdownButtonFormField<String>(
                         isExpanded: true,
                         decoration: const InputDecoration(labelText: 'Refeição (Prescrita)'),
-                        value: refeicaoSelecionada,
+                        initialValue: refeicaoSelecionada,
                         items: [
                           ..._paciente.planoAlimentar.map((e) {
                             return DropdownMenuItem(
@@ -355,10 +351,10 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                         return Card(
                           margin: const EdgeInsets.only(bottom: 12),
                           elevation: 0,
-                          color: Theme.of(context).primaryColor.withOpacity(0.05),
+                          color: Theme.of(context).primaryColor.withValues(alpha: 0.05),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(color: Theme.of(context).primaryColor.withOpacity(0.2)),
+                            side: BorderSide(color: Theme.of(context).primaryColor.withValues(alpha: 0.2)),
                           ),
                           child: Padding(
                             padding: const EdgeInsets.all(12),

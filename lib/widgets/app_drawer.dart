@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../pages/login_page.dart';
 import '../pages/pacientes_page.dart';
 import '../pages/refeicoes_page.dart';
-import '../pages/pacientes_treino_page.dart';
 import '../pages/historico_page.dart';
 import '../pages/financeiro_page.dart';
 import '../pages/configuracoes_page.dart';
@@ -172,21 +171,6 @@ class AppDrawer extends StatelessWidget {
                       }
                     },
                   ),
-
-                  if (isNutri)
-                    _drawerItem(
-                      context,
-                      icone: Icons.fitness_center_outlined,
-                      texto: 'Acessar Módulo de Treino',
-                      ativo: paginaAtual == 'treino',
-                      onTap: () {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const PacientesTreinoPage()),
-                        );
-                      },
-                    ),
 
                   const SizedBox(height: 12),
                   const Divider(),
