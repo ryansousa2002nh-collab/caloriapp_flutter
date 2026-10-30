@@ -18,25 +18,26 @@ class PacientesPage extends StatefulWidget {
 class _PacientesPageState extends State<PacientesPage> {
   final DadosService _dadosService = DadosService();
   String _filtroTexto = '';
-  String _filtroStatus = 'todos'; // 'todos', 'pago', 'debito'
 
   List<PacienteModel> get _pacientesFiltrados {
     return _dadosService.getPacientes().where((paciente) {
       final matchesTexto = paciente.nome.toLowerCase().contains(_filtroTexto.toLowerCase()) ||
           paciente.usuario.toLowerCase().contains(_filtroTexto.toLowerCase());
-      if (!matchesTexto) return false;
-
-      if (_filtroStatus == 'pago') return paciente.isPago;
-      if (_filtroStatus == 'debito') return paciente.isDebito;
-      return true;
+      return matchesTexto;
     }).toList();
+  }
+
+  Future<void> _recarregarPacientes() async {
+    await _dadosService.carregarDadosDoBackend();
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final todosPacientes = _dadosService.getPacientes();
-    final totalPagos = todosPacientes.where((p) => p.isPago).length;
-    final totalDebitos = todosPacientes.where((p) => p.isDebito).length;
+    final comDietaPrescrita = todosPacientes.where((p) => p.planoAlimentar.isNotEmpty).length;
     final isDark = AppColors.isDark(context);
 
     return Scaffold(
@@ -50,7 +51,7 @@ class _PacientesPageState extends State<PacientesPage> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Atualizar',
-            onPressed: () => setState(() {}),
+            onPressed: _recarregarPacientes,
           ),
           IconButton(
             icon: Container(
@@ -68,9 +69,7 @@ class _PacientesPageState extends State<PacientesPage> {
       ),
       drawer: const AppDrawer(paginaAtual: 'pacientes'),
       body: RefreshIndicator(
-        onRefresh: () async {
-          setState(() {});
-        },
+        onRefresh: _recarregarPacientes,
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
@@ -81,7 +80,7 @@ class _PacientesPageState extends State<PacientesPage> {
                   children: [
                     // Subtítulo descritivo
                     Text(
-                      'Gerencie seus pacientes, planos alimentares e situação financeira.',
+                      'Gerencie seus pacientes e prescreva planos alimentares personalizados.',
                       style: TextStyle(
                         color: AppColors.getTextoSecundario(context),
                         fontSize: 13,
@@ -94,7 +93,7 @@ class _PacientesPageState extends State<PacientesPage> {
                       children: [
                         Expanded(
                           child: _buildMetricCard(
-                            label: 'Total',
+                            label: 'Total de Pacientes',
                             valor: '${todosPacientes.length}',
                             cor: AppColors.getTextoPrincipal(context),
                             fundo: AppColors.getCard(context),
@@ -103,21 +102,11 @@ class _PacientesPageState extends State<PacientesPage> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: _buildMetricCard(
-                            label: 'Em dia',
-                            valor: '$totalPagos',
+                            label: 'Com Dieta Ativa',
+                            valor: '$comDietaPrescrita',
                             cor: isDark ? const Color(0xFF4ADE80) : AppColors.verde,
                             fundo: AppColors.getVerdeDestaque(context),
                             borda: AppColors.getVerdeDestaqueBorda(context),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _buildMetricCard(
-                            label: 'Em débito',
-                            valor: '$totalDebitos',
-                            cor: isDark ? const Color(0xFFF87171) : AppColors.vermelho,
-                            fundo: AppColors.getVermelhoDestaque(context),
-                            borda: AppColors.getVermelhoDestaqueBorda(context),
                           ),
                         ),
                       ],
@@ -134,38 +123,12 @@ class _PacientesPageState extends State<PacientesPage> {
                         fillColor: AppColors.getCard(context),
                         isDense: true,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: AppColors.getBorda(context)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: AppColors.getBorda(context)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: AppColors.verde, width: 1.5),
-                        ),
                       ),
                       onChanged: (valor) {
                         setState(() => _filtroTexto = valor);
                       },
                     ),
                     const SizedBox(height: 10),
-
-                    // Filtros de Status (Chips)
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildFilterChip('Todos (${todosPacientes.length})', 'todos'),
-                          const SizedBox(width: 8),
-                          _buildFilterChip('Em dia ($totalPagos)', 'pago', corAtiva: AppColors.verde),
-                          const SizedBox(width: 8),
-                          _buildFilterChip('Em débito ($totalDebitos)', 'debito', corAtiva: AppColors.vermelho),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -181,7 +144,7 @@ class _PacientesPageState extends State<PacientesPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.person_search_outlined, size: 56, color: Colors.grey.shade400),
+                            Icon(Icons.person_search_outlined, size: 56, color: AppColors.getTextoSecundario(context)),
                             const SizedBox(height: 12),
                             Text(
                               'Nenhum paciente encontrado',
@@ -193,7 +156,7 @@ class _PacientesPageState extends State<PacientesPage> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Tente alterar os termos de busca ou o filtro de status.',
+                              'Tente alterar os termos de busca ou adicione um novo paciente.',
                               textAlign: TextAlign.center,
                               style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 13),
                             ),
@@ -245,34 +208,6 @@ class _PacientesPageState extends State<PacientesPage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildFilterChip(String label, String valor, {Color corAtiva = AppColors.verde}) {
-    final selecionado = _filtroStatus == valor;
-    final isDark = AppColors.isDark(context);
-
-    return ChoiceChip(
-      label: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: selecionado ? FontWeight.w700 : FontWeight.normal,
-          color: selecionado ? Colors.white : AppColors.getTextoPrincipal(context),
-        ),
-      ),
-      selected: selecionado,
-      selectedColor: corAtiva,
-      backgroundColor: isDark ? AppColors.cardEscuro : Colors.white,
-      side: BorderSide(
-        color: selecionado ? corAtiva : AppColors.getBorda(context),
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      onSelected: (selected) {
-        if (selected) {
-          setState(() => _filtroStatus = valor);
-        }
-      },
     );
   }
 
@@ -352,7 +287,7 @@ class _PacientesPageState extends State<PacientesPage> {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: isDark ? AppColors.textoSecundarioEscuro : Colors.grey.shade700,
+                              color: isDark ? AppColors.textoSecundarioEscuro : AppColors.getTextoSecundario(context),
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -364,11 +299,6 @@ class _PacientesPageState extends State<PacientesPage> {
               ),
 
               const SizedBox(width: 8),
-
-              // Situação Financeira (Verde se pago, Vermelho se débito)
-              _buildStatusFinanceiroBadge(paciente),
-
-              const SizedBox(width: 4),
               Icon(
                 Icons.chevron_right,
                 size: 20,
@@ -376,135 +306,6 @@ class _PacientesPageState extends State<PacientesPage> {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatusFinanceiroBadge(PacienteModel paciente) {
-    final isPago = paciente.isPago;
-    final isDark = AppColors.isDark(context);
-    final corDestaque = isPago
-        ? (isDark ? const Color(0xFF4ADE80) : AppColors.verde)
-        : (isDark ? const Color(0xFFF87171) : AppColors.vermelho);
-    final corFundo = isPago ? AppColors.getVerdeDestaque(context) : AppColors.getVermelhoDestaque(context);
-    final corBorda = isPago ? AppColors.getVerdeDestaqueBorda(context) : AppColors.getVermelhoDestaqueBorda(context);
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: () {
-        showModalBottomSheet(
-          context: context,
-          backgroundColor: AppColors.getCard(context),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          builder: (context) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Situação Financeira — ${paciente.nome}',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.getTextoPrincipal(context),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Mensalidade atual: ${paciente.valorFormatado}',
-                      style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 13),
-                    ),
-                    const SizedBox(height: 16),
-                    ListTile(
-                      leading: const Icon(Icons.check_circle, color: AppColors.verde),
-                      title: Text(
-                        'Marcar como Pago (Em dia)',
-                        style: TextStyle(color: AppColors.getTextoPrincipal(context)),
-                      ),
-                      subtitle: Text(
-                        'O valor aparecerá verde no aplicativo',
-                        style: TextStyle(color: AppColors.getTextoSecundario(context)),
-                      ),
-                      trailing: isPago ? const Icon(Icons.done, color: AppColors.verde) : null,
-                      onTap: () {
-                        setState(() {
-                          paciente.statusFinanceiro = StatusFinanceiro.pago;
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.error, color: AppColors.vermelho),
-                      title: Text(
-                        'Marcar como Em Débito',
-                        style: TextStyle(color: AppColors.getTextoPrincipal(context)),
-                      ),
-                      subtitle: Text(
-                        'O valor aparecerá vermelho no aplicativo',
-                        style: TextStyle(color: AppColors.getTextoSecundario(context)),
-                      ),
-                      trailing: !isPago ? const Icon(Icons.done, color: AppColors.vermelho) : null,
-                      onTap: () {
-                        setState(() {
-                          paciente.statusFinanceiro = StatusFinanceiro.debito;
-                        });
-                        Navigator.pop(context);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: corFundo,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: corBorda, width: 1),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Valor destacado (em vermelho se débito, em verde se pago)
-            Text(
-              paciente.valorFormatado,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: corDestaque,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  isPago ? Icons.check_circle : Icons.error_rounded,
-                  size: 11,
-                  color: corDestaque,
-                ),
-                const SizedBox(width: 3),
-                Text(
-                  isPago ? 'Pago' : 'Em débito',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: corDestaque,
-                  ),
-                ),
-              ],
-            ),
-          ],
         ),
       ),
     );
@@ -613,7 +414,9 @@ class _PacientesPageState extends State<PacientesPage> {
 
                               if (sucesso) {
                                 Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                await _recarregarPacientes();
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(this.context).showSnackBar(
                                   const SnackBar(
                                     content: Text('Paciente cadastrado com sucesso!'),
                                     backgroundColor: AppColors.verde,

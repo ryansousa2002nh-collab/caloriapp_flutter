@@ -1,16 +1,23 @@
 import 'package:flutter/material.dart';
+import '../models/alimento_model.dart';
+import '../models/dieta_model.dart';
 import '../models/paciente_model.dart';
 import '../models/registro_diario_model.dart';
-import '../models/alimento_model.dart';
 import '../services/dados_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/apple_theme_toggle.dart';
 
 class _IngredienteForm {
-  String alimentoNome = '';
+  String alimentoNome = BancoAlimentos.lista.first.nome;
   int quantidadeGramas = 100;
   String observacoes = '';
+
+  int get caloriasCalculadas {
+    if (alimentoNome.trim().isEmpty || quantidadeGramas <= 0) return 0;
+    final cal100 = BancoAlimentos.buscarCaloriasPor100g(alimentoNome);
+    return ((cal100 * quantidadeGramas) / 100).round();
+  }
 }
 
 class RefeicoesPage extends StatefulWidget {
@@ -29,23 +36,38 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
   void initState() {
     super.initState();
     _carregarPaciente();
-  }
-
-  void _carregarPaciente() {
-    final pacientes = _dadosService.getPacientes();
-    if (pacientes.isNotEmpty) {
-      _paciente = pacientes.first;
-    } else {
-      _paciente = PacienteModel(
-        id: 0,
-        nome: 'Sem dados (Erro)',
-        usuario: 'erro',
-        statusFinanceiro: StatusFinanceiro.debito,
-      );
+    if (_dadosService.getPacientes().length <= 1 && _paciente.planoAlimentar.isEmpty) {
+      _dadosService.carregarDadosDoBackend().then((_) {
+        if (mounted) {
+          setState(() {
+            _carregarPaciente();
+          });
+        }
+      });
     }
   }
 
-  int get _totalConsumido => _paciente.registrosDiarios.isNotEmpty ? _paciente.registrosDiarios.first.totalCalorias : 0;
+  void _carregarPaciente() {
+    _paciente = _dadosService.getPacienteAtivo();
+  }
+
+  String get _dataSelecionadaStr => _dataSelecionada.toIso8601String().split('T').first;
+
+  List<ItemRegistroDiarioModel> get _itensDoDia {
+    final regs = _paciente.registrosDiarios.where(
+      (r) => r.data == null || r.data == _dataSelecionadaStr,
+    ).toList();
+    if (regs.isNotEmpty) {
+      return regs.expand((r) => r.itens).toList();
+    }
+    return [];
+  }
+
+  /// Total de calorias já consumidas no dia selecionado
+  int get _totalConsumido => _itensDoDia.fold(0, (soma, item) => soma + item.calorias);
+
+  /// Calorias restantes = Meta diária menos a quantidade calórica já consumida
+  double get _caloriasRestantes => _paciente.metaCalorica - _totalConsumido;
 
   Future<void> _mudarData(BuildContext context) async {
     final DateTime? novaData = await showDatePicker(
@@ -60,9 +82,9 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
         _dataSelecionada = novaData;
       });
 
-      await _dadosService.carregarRegistrosDiarios(novaData.toIso8601String().split('T').first);
+      await _dadosService.carregarRegistrosDiarios(_dataSelecionadaStr);
       _carregarPaciente();
-      
+
       if (mounted) {
         setState(() {});
       }
@@ -91,9 +113,10 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final metaDiaria = _paciente.metaCalorica;
-    final restante = metaDiaria - _totalConsumido;
-    final progresso = (_totalConsumido / (metaDiaria > 0 ? metaDiaria : 1)).clamp(0.0, 1.0);
+    final double metaDiaria = _paciente.metaCalorica;
+    final int consumido = _totalConsumido;
+    final double restante = _caloriasRestantes; // Meta - Consumidas
+    final double progresso = (consumido / (metaDiaria > 0 ? metaDiaria : 1)).clamp(0.0, 1.0);
     final isDark = AppColors.isDark(context);
 
     return DefaultTabController(
@@ -119,11 +142,11 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
             AppleThemeToggle(size: 28),
             SizedBox(width: 8),
           ],
-          bottom: const TabBar(
+          bottom: TabBar(
             indicatorColor: AppColors.verde,
             labelColor: AppColors.verde,
-            unselectedLabelColor: Colors.grey,
-            tabs: [
+            unselectedLabelColor: AppColors.getTextoSecundario(context),
+            tabs: const [
               Tab(text: 'Plano Prescrito', icon: Icon(Icons.assignment)),
               Tab(text: 'Registro Diário', icon: Icon(Icons.restaurant_menu)),
             ],
@@ -132,7 +155,7 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
         drawer: const AppDrawer(paginaAtual: 'refeicoes'),
         body: Column(
           children: [
-            // Cabecalho de Resumo
+            // Cabeçalho de Resumo Calórico
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -150,7 +173,7 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Acompanhe o que você comeu hoje no "Registro Diário".',
+                            'Registre suas refeições para descontar automaticamente das calorias restantes do dia.',
                             style: TextStyle(color: AppColors.getTextoPrincipal(context), fontSize: 12),
                           ),
                         ),
@@ -163,8 +186,9 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                       Expanded(
                         child: _summaryCard(
                           'Consumidas',
-                          '$_totalConsumido kcal',
+                          '$consumido kcal',
                           destaque: true,
+                          subtitulo: 'Já ingerido hoje',
                           cor: isDark ? const Color(0xFF4ADE80) : AppColors.verde,
                         ),
                       ),
@@ -186,6 +210,7 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                         child: _summaryCard(
                           'Restante',
                           '${restante.toStringAsFixed(0)} kcal',
+                          subtitulo: restante >= 0 ? 'Meta - Consumidas' : 'Acima da meta',
                           cor: restante < 0
                               ? (isDark ? const Color(0xFFF87171) : AppColors.vermelho)
                               : AppColors.getTextoPrincipal(context),
@@ -210,19 +235,23 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        '${(progresso * 100).toStringAsFixed(0)}% concluído',
+                        '${(progresso * 100).toStringAsFixed(0)}% da meta consumida',
                         style: TextStyle(fontSize: 11, color: AppColors.getTextoSecundario(context)),
                       ),
                       Text(
-                        '$_totalConsumido / ${metaDiaria.toStringAsFixed(0)} kcal',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.getTextoSecundario(context)),
+                        'Faltam ${restante > 0 ? restante.toStringAsFixed(0) : 0} kcal (Consumido: $consumido / ${metaDiaria.toStringAsFixed(0)} kcal)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.getTextoSecundario(context),
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            
+
             // Abas
             Expanded(
               child: TabBarView(
@@ -258,10 +287,7 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
   }
 
   Widget _buildRegistroDiarioTab() {
-    final registrosDeHoje = _paciente.registrosDiarios;
-    final RegistroDiarioModel registroAtual = registrosDeHoje.isNotEmpty 
-        ? registrosDeHoje.first 
-        : RegistroDiarioModel(id: '', itens: []);
+    final itensHoje = _itensDoDia;
 
     return ListView(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -277,22 +303,24 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
           ),
         ),
         const SizedBox(height: 16),
-        if (registroAtual.itens.isEmpty)
+        if (itensHoje.isEmpty)
           Center(
-            child: Text(
-              'Você ainda não registrou nada hoje.',
-              style: TextStyle(color: AppColors.getTextoSecundario(context)),
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Text(
+                'Você ainda não registrou nada neste dia.',
+                style: TextStyle(color: AppColors.getTextoSecundario(context)),
+              ),
             ),
           )
         else
-          ..._agruparRegistros(registroAtual.itens).map((refeicao) => _buildMealCard(refeicao, isRegistro: true)),
+          ..._agruparRegistros(itensHoje).map((refeicao) => _buildMealCard(refeicao, isRegistro: true)),
         const SizedBox(height: 16),
       ],
     );
   }
 
   List<dynamic> _agruparRegistros(List<ItemRegistroDiarioModel> itens) {
-    // Agrupa itens por refeição planejada
     final Map<String, List<ItemRegistroDiarioModel>> grupos = {};
     for (var item in itens) {
       final key = item.refeicaoNome ?? 'Outros';
@@ -300,7 +328,6 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
       grupos[key]!.add(item);
     }
 
-    // Cria objetos fake simulando RefeicaoModel para reutilizar o card
     return grupos.entries.map((e) {
       return _FakeRefeicao(
         tipo: e.key,
@@ -310,8 +337,53 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
     }).toList();
   }
 
+  Future<void> _registrarRefeicaoPrescritaCompleta(RefeicaoModel refeicao) async {
+    final ingredientes = refeicao.itens.map((item) {
+      final form = _IngredienteForm();
+      form.alimentoNome = item.alimentoNome ?? BancoAlimentos.lista.first.nome;
+      form.quantidadeGramas = item.gramas.round();
+      return form;
+    }).toList();
+
+    if (ingredientes.isEmpty) return;
+    await _salvarConsumoEmMassa(refeicao.id, ingredientes);
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '${refeicao.tipo} (+${refeicao.totalCalorias} kcal) registrada! Restam ${_caloriasRestantes.toStringAsFixed(0)} kcal.',
+        ),
+        backgroundColor: AppColors.verde,
+      ),
+    );
+  }
+
+  Future<void> _removerItemConsumido(ItemRegistroDiarioModel itemParaRemover) async {
+    final itensAtuais = List<ItemRegistroDiarioModel>.from(_itensDoDia);
+    itensAtuais.remove(itemParaRemover);
+
+    final regExistente = _paciente.registrosDiarios.where(
+      (r) => r.data == null || r.data == _dataSelecionadaStr,
+    );
+    final regId = regExistente.isNotEmpty ? regExistente.first.id : 'reg_${DateTime.now().millisecondsSinceEpoch}';
+
+    final data = {
+      'id': regId,
+      'usuario_id': _paciente.id,
+      'data': _dataSelecionadaStr,
+      'itens': itensAtuais.map((i) => i.toJson()).toList(),
+    };
+
+    await _dadosService.salvarRegistroDiario(_paciente.id, data);
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   void _showAddRegistroDialog() {
-    String? refeicaoSelecionada;
+    String refeicaoSelecionada =
+        _paciente.planoAlimentar.isNotEmpty ? _paciente.planoAlimentar.first.id : 'outros';
     List<_IngredienteForm> ingredientes = [_IngredienteForm()];
 
     showDialog(
@@ -319,6 +391,9 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setStateDialog) {
+            final totalAdicionado = ingredientes.fold<int>(0, (s, i) => s + i.caloriasCalculadas);
+            final novoRestantePrevisto = _caloriasRestantes - totalAdicionado;
+
             return AlertDialog(
               title: const Text('Registrar Consumo'),
               content: SizedBox(
@@ -329,7 +404,7 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                     children: [
                       DropdownButtonFormField<String>(
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Refeição (Prescrita)'),
+                        decoration: const InputDecoration(labelText: 'Refeição'),
                         initialValue: refeicaoSelecionada,
                         items: [
                           ..._paciente.planoAlimentar.map((e) {
@@ -343,12 +418,17 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                             child: Text('Outros (Refeição Adicional)'),
                           ),
                         ],
-                        onChanged: (val) => setStateDialog(() => refeicaoSelecionada = val),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setStateDialog(() => refeicaoSelecionada = val);
+                          }
+                        },
                       ),
                       const SizedBox(height: 16),
                       ...List.generate(ingredientes.length, (index) {
                         final ing = ingredientes[index];
                         return Card(
+                          key: ObjectKey(ing),
                           margin: const EdgeInsets.only(bottom: 12),
                           elevation: 0,
                           color: Theme.of(context).primaryColor.withValues(alpha: 0.05),
@@ -374,75 +454,86 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                                       ),
                                   ],
                                 ),
-                                Autocomplete<String>(
-                                  optionsBuilder: (TextEditingValue textEditingValue) {
-                                    if (textEditingValue.text.isEmpty) {
-                                      return BancoAlimentos.lista.map((e) => e.nome);
-                                    }
-                                    return BancoAlimentos.lista
-                                        .where((e) => e.nome.toLowerCase().contains(textEditingValue.text.toLowerCase()))
-                                        .map((e) => e.nome);
-                                  },
-                                  onSelected: (String val) => ing.alimentoNome = val,
-                                  fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
-                                    return TextField(
-                                      controller: controller,
-                                      focusNode: focusNode,
-                                      onEditingComplete: onEditingComplete,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Nome do Alimento',
-                                        hintText: 'Digite para buscar',
+                                DropdownButtonFormField<String>(
+                                  isExpanded: true,
+                                  initialValue: BancoAlimentos.lista.any((a) => a.nome == ing.alimentoNome)
+                                      ? ing.alimentoNome
+                                      : BancoAlimentos.lista.first.nome,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Selecione o Alimento',
+                                  ),
+                                  items: BancoAlimentos.lista.map((alimento) {
+                                    return DropdownMenuItem(
+                                      value: alimento.nome,
+                                      child: Text(
+                                        '${alimento.nome} (${alimento.caloriasPor100g} kcal/100g)',
+                                        style: const TextStyle(fontSize: 13),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      onChanged: (val) => ing.alimentoNome = val,
                                     );
+                                  }).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setStateDialog(() => ing.alimentoNome = val);
+                                    }
                                   },
                                 ),
                                 const SizedBox(height: 12),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const SizedBox(height: 10),
                                     Text(
                                       'Quantidade consumida:',
-                                      style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.6), fontSize: 13),
+                                      style: TextStyle(
+                                        color: Theme.of(context).textTheme.bodyMedium?.color?.withValues(alpha: 0.8),
+                                        fontSize: 13,
+                                      ),
                                     ),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(Icons.remove_circle_outline, size: 28),
-                                          color: Colors.red,
-                                          onPressed: () {
-                                            setStateDialog(() {
-                                              if (ing.quantidadeGramas > 10) ing.quantidadeGramas -= 10;
-                                            });
-                                          },
-                                        ),
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                                          child: Text(
-                                            '${ing.quantidadeGramas}g',
-                                            style: TextStyle(
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.bold,
-                                              color: Theme.of(context).textTheme.bodyLarge?.color,
-                                            ),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.add_circle_outline, size: 28),
-                                          color: Colors.green,
-                                          onPressed: () {
-                                            setStateDialog(() {
-                                              ing.quantidadeGramas += 10;
-                                            });
-                                          },
-                                        ),
-                                      ],
+                                    Text(
+                                      '${ing.caloriasCalculadas} kcal',
+                                      style: const TextStyle(
+                                        color: AppColors.verde,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 12),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.remove_circle_outline, size: 28),
+                                      color: Colors.red,
+                                      onPressed: () {
+                                        setStateDialog(() {
+                                          if (ing.quantidadeGramas > 10) ing.quantidadeGramas -= 10;
+                                        });
+                                      },
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                                      child: Text(
+                                        '${ing.quantidadeGramas}g',
+                                        style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                          color: Theme.of(context).textTheme.bodyLarge?.color,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.add_circle_outline, size: 28),
+                                      color: Colors.green,
+                                      onPressed: () {
+                                        setStateDialog(() {
+                                          ing.quantidadeGramas += 10;
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
                                 TextField(
                                   decoration: const InputDecoration(labelText: 'Observações (Opcional)'),
                                   onChanged: (val) => ing.observacoes = val,
@@ -459,6 +550,27 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                         icon: const Icon(Icons.add),
                         label: const Text('Adicionar mais um alimento'),
                       ),
+                      const Divider(),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Total a descontar: -$totalAdicionado kcal',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            Text(
+                              'Restará: ${novoRestantePrevisto.toStringAsFixed(0)} kcal',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: novoRestantePrevisto < 0 ? AppColors.vermelho : AppColors.verde,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -469,14 +581,15 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                   child: const Text('Cancelar'),
                 ),
                 ElevatedButton(
-                  onPressed: () {
-                    final validos = ingredientes.where((i) => i.alimentoNome.isNotEmpty && i.quantidadeGramas > 0).toList();
-                    if (refeicaoSelecionada != null && validos.isNotEmpty) {
-                      _salvarConsumoEmMassa(refeicaoSelecionada!, validos);
+                  onPressed: () async {
+                    final validos =
+                        ingredientes.where((i) => i.alimentoNome.trim().isNotEmpty && i.quantidadeGramas > 0).toList();
+                    if (validos.isNotEmpty) {
                       Navigator.pop(context);
+                      await _salvarConsumoEmMassa(refeicaoSelecionada, validos);
                     }
                   },
-                  child: const Text('Salvar Tudo'),
+                  child: const Text('Salvar Consumo'),
                 ),
               ],
             );
@@ -486,34 +599,42 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
     );
   }
 
-  void _salvarConsumoEmMassa(String refeicaoId, List<_IngredienteForm> ingredientes) async {
-    String dataHoje = _dataSelecionada.toIso8601String().split('T').first;
-    
-    Map<String, dynamic> data = {
+  Future<void> _salvarConsumoEmMassa(String refeicaoId, List<_IngredienteForm> ingredientes) async {
+    final String dataHoje = _dataSelecionadaStr;
+    final refPrescrita = _paciente.planoAlimentar.where((r) => r.id == refeicaoId);
+    final nomeRefeicao = refPrescrita.isNotEmpty ? refPrescrita.first.tipo : 'Outros';
+
+    final novosItens = ingredientes.map((ing) {
+      return {
+        'refeicao_nome': nomeRefeicao,
+        'refeicao_planejada': int.tryParse(refeicaoId),
+        'alimento_nome': ing.alimentoNome,
+        'quantidade_gramas': ing.quantidadeGramas,
+        'calorias_manual': ing.caloriasCalculadas,
+        'observacoes': ing.observacoes.isEmpty ? null : ing.observacoes,
+      };
+    }).toList();
+
+    final itensExistentes = _itensDoDia.map((i) => i.toJson()).toList();
+    itensExistentes.addAll(novosItens);
+
+    final regExistente = _paciente.registrosDiarios.where(
+      (r) => r.data == null || r.data == dataHoje,
+    );
+    final regId = regExistente.isNotEmpty ? regExistente.first.id : 'reg_${DateTime.now().millisecondsSinceEpoch}';
+
+    final Map<String, dynamic> data = {
+      'id': regId,
       'usuario_id': _paciente.id,
       'data': dataHoje,
-      'itens': ingredientes.map((ing) {
-        int cal100 = BancoAlimentos.buscarCaloriasPor100g(ing.alimentoNome);
-        return {
-          'refeicao_planejada': int.tryParse(refeicaoId),
-          'alimento_nome': ing.alimentoNome,
-          'quantidade_gramas': ing.quantidadeGramas,
-          'calorias_manual': ((cal100 * ing.quantidadeGramas) / 100).round(),
-          'observacoes': ing.observacoes.isEmpty ? null : ing.observacoes,
-        };
-      }).toList()
+      'itens': itensExistentes,
     };
 
-    if (_paciente.registrosDiarios.isNotEmpty && _paciente.registrosDiarios.first.data == dataHoje) {
-      final r = _paciente.registrosDiarios.first;
-      data['id'] = r.id; // Adicionado ID para realizar PUT na API
-      List<Map<String, dynamic>> itensData = r.itens.map((i) => i.toJson()).toList();
-      itensData.addAll(data['itens'] as List<Map<String, dynamic>>);
-      data['itens'] = itensData;
-    }
-
     await _dadosService.salvarRegistroDiario(_paciente.id, data);
-    setState(() {});
+    _carregarPaciente();
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   Widget _summaryCard(
@@ -541,7 +662,11 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                   ),
                 ),
                 if (icone != null)
-                  Icon(icone, size: 14, color: AppColors.isDark(context) ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro),
+                  Icon(
+                    icone,
+                    size: 14,
+                    color: AppColors.isDark(context) ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                  ),
               ],
             ),
             const SizedBox(height: 6),
@@ -557,7 +682,11 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
               const SizedBox(height: 2),
               Text(
                 subtitulo,
-                style: TextStyle(fontSize: 9, color: AppColors.getTextoSecundario(context), fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 9,
+                  color: AppColors.getTextoSecundario(context),
+                  fontWeight: FontWeight.w600,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
             ],
@@ -605,10 +734,30 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                     ),
                   ],
                 ),
-                if (!isRegistro && refeicao.horarioSugerido != null)
-                  Text(
-                    refeicao.horarioSugerido!,
-                    style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 12),
+                if (!isRegistro && refeicao is RefeicaoModel)
+                  Row(
+                    children: [
+                      if (refeicao.horarioSugerido != null)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Text(
+                            refeicao.horarioSugerido!,
+                            style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 12),
+                          ),
+                        ),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          backgroundColor: AppColors.getVerdeDestaque(context),
+                          foregroundColor: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: () => _registrarRefeicaoPrescritaCompleta(refeicao),
+                        icon: const Icon(Icons.check, size: 14),
+                        label: const Text('Consumir', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
                   ),
               ],
             ),
@@ -619,30 +768,50 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${item.alimentoNome} — ${item.gramas.toStringAsFixed(0)}g',
+                            style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 13),
+                          ),
+                          if (isRegistro &&
+                              (item as dynamic).observacoes != null &&
+                              ((item as dynamic).observacoes as String).isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                'Obs: ${(item as dynamic).observacoes}',
+                                style: TextStyle(
+                                  color: AppColors.getTextoSecundario(context),
+                                  fontSize: 11,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          '${item.alimentoNome} — ${item.gramas.toStringAsFixed(0)}g',
-                          style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 13),
+                          '${item.calorias} kcal',
+                          style: TextStyle(
+                            color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
                         ),
-                        if (isRegistro && (item as dynamic).observacoes != null && ((item as dynamic).observacoes as String).isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              'Obs: ${(item as dynamic).observacoes}',
-                              style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 11, fontStyle: FontStyle.italic),
-                            ),
+                        if (isRegistro && item is ItemRegistroDiarioModel)
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 16, color: AppColors.vermelho),
+                            visualDensity: VisualDensity.compact,
+                            tooltip: 'Remover item consumido',
+                            onPressed: () => _removerItemConsumido(item),
                           ),
                       ],
-                    ),
-                    Text(
-                      '${item.calorias} kcal',
-                      style: TextStyle(
-                        color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
                     ),
                   ],
                 ),
@@ -681,6 +850,6 @@ class _FakeRefeicao {
   final String tipo;
   final List<ItemRegistroDiarioModel> itens;
   final int totalCalorias;
-  
+
   _FakeRefeicao({required this.tipo, required this.itens, required this.totalCalorias});
 }

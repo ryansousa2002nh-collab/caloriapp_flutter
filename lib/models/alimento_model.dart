@@ -348,15 +348,21 @@ class BancoAlimentos {
   ];
 
   static Alimento? buscarPorNome(String nome) {
-    try {
-      return lista.firstWhere((a) => a.nome.toLowerCase() == nome.toLowerCase());
-    } catch (_) {
-      return null;
+    final termo = nome.trim().toLowerCase();
+    if (termo.isEmpty) return null;
+    for (final a in lista) {
+      if (a.nome.toLowerCase() == termo) return a;
     }
+    for (final a in lista) {
+      if (a.nome.toLowerCase().contains(termo) || termo.contains(a.nome.toLowerCase())) {
+        return a;
+      }
+    }
+    return null;
   }
 
   static int buscarCaloriasPor100g(String nome) {
     final alimento = buscarPorNome(nome);
-    return alimento?.caloriasPor100g ?? 0;
+    return alimento?.caloriasPor100g ?? 120;
   }
 }

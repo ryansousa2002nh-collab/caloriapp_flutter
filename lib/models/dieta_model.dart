@@ -70,7 +70,7 @@ class RefeicaoModel {
   factory RefeicaoModel.fromJson(Map<String, dynamic> json) {
     var itensList = json['itens'] as List? ?? [];
     return RefeicaoModel(
-      id: json['id'].toString(),
+      id: (json['id'] ?? 'ref_${DateTime.now().millisecondsSinceEpoch}').toString(),
       tipo: json['tipo'] ?? '',
       horarioSugerido: json['horario_sugerido'],
       observacoes: json['observacoes'],
@@ -80,6 +80,7 @@ class RefeicaoModel {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'tipo': tipo,
       'horario_sugerido': horarioSugerido,
       'observacoes': observacoes,

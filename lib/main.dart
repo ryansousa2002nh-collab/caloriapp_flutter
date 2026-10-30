@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'pages/login_page.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
+import 'widgets/botanical_background.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,7 +18,7 @@ class BlueGlowScrollBehavior extends ScrollBehavior {
       BuildContext context, Widget child, ScrollableDetails details) {
     return GlowingOverscrollIndicator(
       axisDirection: details.direction,
-      color: Colors.blue.shade200,
+      color: const Color(0xFF7D9360),
       showLeading: true,
       showTrailing: true,
       child: child,
@@ -40,12 +41,14 @@ class MyApp extends StatelessWidget {
           darkTheme: darkTheme,
           themeMode: ThemeController.instance.themeMode,
           scrollBehavior: const BlueGlowScrollBehavior(),
-          builder: (context, child) => SafeArea(
-            top: false,
-            left: false,
-            right: false,
-            bottom: true,
-            child: child!,
+          builder: (context, child) => BotanicalBackground(
+            child: SafeArea(
+              top: false,
+              left: false,
+              right: false,
+              bottom: true,
+              child: child!,
+            ),
           ),
           home: const LoginPage(),
         );

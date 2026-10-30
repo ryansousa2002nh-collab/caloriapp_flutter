@@ -26,7 +26,7 @@ class _HistoricoPageState extends State<HistoricoPage> {
   @override
   void initState() {
     super.initState();
-    _paciente = widget.paciente ?? _dadosService.getPacientes().first;
+    _paciente = widget.paciente ?? _dadosService.getPacienteAtivo();
   }
 
   @override
@@ -37,23 +37,27 @@ class _HistoricoPageState extends State<HistoricoPage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.isNutri ? 'Histórico de ${_paciente.nome}' : 'Histórico & Metas', style: const TextStyle(fontWeight: FontWeight.w700)),
+          title: Text(
+            widget.isNutri ? 'Histórico de ${_paciente.nome}' : 'Histórico & Metas',
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
           actions: [
             const AppleThemeToggle(size: 28),
             if (widget.isNutri)
               IconButton(
                 icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Editar metas e medidas',
                 onPressed: _editarMetas,
               ),
             const SizedBox(width: 8),
           ],
-          bottom: const TabBar(
-            tabs: [
+          bottom: TabBar(
+            tabs: const [
               Tab(text: 'HISTÓRICO'),
               Tab(text: 'METAS'),
             ],
             labelColor: AppColors.verde,
-            unselectedLabelColor: Colors.grey,
+            unselectedLabelColor: AppColors.getTextoSecundario(context),
             indicatorColor: AppColors.verde,
           ),
         ),
@@ -68,13 +72,14 @@ class _HistoricoPageState extends State<HistoricoPage> {
     );
   }
 
-
-
   Widget _buildAbaHistorico() {
     final registros = _paciente.registrosDiarios;
     if (registros.isEmpty) {
       return Center(
-        child: Text('Nenhum histórico de refeição.', style: TextStyle(color: AppColors.getTextoSecundario(context))),
+        child: Text(
+          'Nenhum histórico de refeição.',
+          style: TextStyle(color: AppColors.getTextoSecundario(context)),
+        ),
       );
     }
 
@@ -88,7 +93,7 @@ class _HistoricoPageState extends State<HistoricoPage> {
           final p = registro.data!.split('-');
           if (p.length == 3) dataStr = '${p[2]}/${p[1]}/${p[0]}';
         }
-        
+
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -120,14 +125,18 @@ class _HistoricoPageState extends State<HistoricoPage> {
                           ),
                           Text(
                             '${item.calorias} kcal',
-                            style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 13, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                              color: AppColors.getTextoSecundario(context),
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
                     );
                   }).toList(),
                 ),
-              )
+              ),
             ],
           ),
         );
@@ -151,12 +160,14 @@ class _HistoricoPageState extends State<HistoricoPage> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.getFundoPagina(context),
+      backgroundColor: AppColors.getCard(context),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (context) {
         return Padding(
           padding: EdgeInsets.only(
-            left: 16, right: 16, top: 24,
+            left: 16,
+            right: 16,
+            top: 24,
             bottom: MediaQuery.of(context).viewInsets.bottom + 24,
           ),
           child: SingleChildScrollView(
@@ -167,7 +178,10 @@ class _HistoricoPageState extends State<HistoricoPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Editar Metas', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.getTextoPrincipal(context))),
+                    Text(
+                      'Editar Metas',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.getTextoPrincipal(context)),
+                    ),
                     IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
                   ],
                 ),
@@ -175,21 +189,42 @@ class _HistoricoPageState extends State<HistoricoPage> {
                 _buildCampoEdicao('Peso Atual (kg)', txtPesoAtual),
                 _buildCampoEdicao('Meta de Peso (kg)', txtMetaPeso),
                 const Divider(height: 32),
-                Text('Medidas (Antes / Depois)', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getTextoPrincipal(context))),
+                Text(
+                  'Medidas (Antes / Depois)',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getTextoPrincipal(context)),
+                ),
                 const SizedBox(height: 12),
-                Row(children: [Expanded(child: _buildCampoEdicao('Cintura Antes', txtCinturaA)), const SizedBox(width: 8), Expanded(child: _buildCampoEdicao('Cintura Depois', txtCinturaD))]),
-                Row(children: [Expanded(child: _buildCampoEdicao('Quadril Antes', txtQuadrilA)), const SizedBox(width: 8), Expanded(child: _buildCampoEdicao('Quadril Depois', txtQuadrilD))]),
-                Row(children: [Expanded(child: _buildCampoEdicao('Coxa Antes', txtCoxaA)), const SizedBox(width: 8), Expanded(child: _buildCampoEdicao('Coxa Depois', txtCoxaD))]),
-                Row(children: [Expanded(child: _buildCampoEdicao('Braço Antes', txtBracoA)), const SizedBox(width: 8), Expanded(child: _buildCampoEdicao('Braço Depois', txtBracoD))]),
+                Row(children: [
+                  Expanded(child: _buildCampoEdicao('Cintura Antes', txtCinturaA)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildCampoEdicao('Cintura Depois', txtCinturaD)),
+                ]),
+                Row(children: [
+                  Expanded(child: _buildCampoEdicao('Quadril Antes', txtQuadrilA)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildCampoEdicao('Quadril Depois', txtQuadrilD)),
+                ]),
+                Row(children: [
+                  Expanded(child: _buildCampoEdicao('Coxa Antes', txtCoxaA)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildCampoEdicao('Coxa Depois', txtCoxaD)),
+                ]),
+                Row(children: [
+                  Expanded(child: _buildCampoEdicao('Braço Antes', txtBracoA)),
+                  const SizedBox(width: 8),
+                  Expanded(child: _buildCampoEdicao('Braço Depois', txtBracoD)),
+                ]),
                 const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.verde, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.verde,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
                     onPressed: () {
                       setState(() {
-
                         metas.pesoAtual = double.tryParse(txtPesoAtual.text.replaceAll(',', '.')) ?? metas.pesoAtual;
                         metas.metaPeso = double.tryParse(txtMetaPeso.text.replaceAll(',', '.')) ?? metas.metaPeso;
                         metas.cinturaAntes = double.tryParse(txtCinturaA.text.replaceAll(',', '.')) ?? metas.cinturaAntes;
@@ -200,11 +235,17 @@ class _HistoricoPageState extends State<HistoricoPage> {
                         metas.coxaDepois = double.tryParse(txtCoxaD.text.replaceAll(',', '.')) ?? metas.coxaDepois;
                         metas.bracoAntes = double.tryParse(txtBracoA.text.replaceAll(',', '.')) ?? metas.bracoAntes;
                         metas.bracoDepois = double.tryParse(txtBracoD.text.replaceAll(',', '.')) ?? metas.bracoDepois;
+                        _dadosService.atualizarMetas(_paciente.id, metas);
                       });
                       Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Metas atualizadas com sucesso!')));
+                      ScaffoldMessenger.of(this.context).showSnackBar(
+                        const SnackBar(content: Text('Metas atualizadas com sucesso!')),
+                      );
                     },
-                    child: const Text('Salvar Alterações', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'Salvar Alterações',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
               ],
@@ -223,7 +264,6 @@ class _HistoricoPageState extends State<HistoricoPage> {
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         decoration: InputDecoration(
           labelText: label,
-          border: const OutlineInputBorder(),
           isDense: true,
         ),
       ),
@@ -232,6 +272,8 @@ class _HistoricoPageState extends State<HistoricoPage> {
 
   Widget _buildAbaMetas(bool isDark) {
     final metas = _paciente.metas;
+    final diasRegistrados = _paciente.registrosDiarios.isEmpty ? 1 : _paciente.registrosDiarios.length;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
@@ -254,16 +296,25 @@ class _HistoricoPageState extends State<HistoricoPage> {
             ),
           ),
           const SizedBox(height: 24),
-          
+
           // Cards de Metas
           Row(
             children: [
-              Expanded(child: _buildMetaCard('Peso Atual', '${metas.pesoAtual} kg', Icons.speed, isDark ? const Color(0xFF6EE7B7) : AppColors.verde)),
+              Expanded(
+                child: _buildMetaCard(
+                  'Peso Atual',
+                  '${metas.pesoAtual} kg',
+                  Icons.speed,
+                  isDark ? const Color(0xFF6EE7B7) : AppColors.verde,
+                ),
+              ),
               const SizedBox(width: 12),
-              Expanded(child: _buildMetaCard('Meta de Peso', '${metas.metaPeso} kg', Icons.flag_outlined, Colors.orange)),
+              Expanded(
+                child: _buildMetaCard('Meta de Peso', '${metas.metaPeso} kg', Icons.flag_outlined, Colors.orange),
+              ),
             ],
           ),
-          
+
           const SizedBox(height: 32),
           Text(
             'Progresso da Meta',
@@ -275,13 +326,13 @@ class _HistoricoPageState extends State<HistoricoPage> {
           ),
           const SizedBox(height: 16),
           _buildProgressBar(
-            titulo: 'Dias na Dieta (Este Mês)',
-            valorAtual: 22,
+            titulo: 'Dias Registrados (Este Mês)',
+            valorAtual: diasRegistrados.toDouble(),
             valorTotal: 30,
             sufixo: 'dias',
-            cor: Colors.blueAccent,
+            cor: AppColors.verde,
           ),
-          
+
           const SizedBox(height: 32),
           Text(
             'Histórico de Medidas',
@@ -318,7 +369,7 @@ class _HistoricoPageState extends State<HistoricoPage> {
             color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -355,7 +406,7 @@ class _HistoricoPageState extends State<HistoricoPage> {
     required Color cor,
   }) {
     final progresso = (valorAtual / valorTotal).clamp(0.0, 1.0);
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -367,7 +418,7 @@ class _HistoricoPageState extends State<HistoricoPage> {
               style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.getTextoPrincipal(context)),
             ),
             Text(
-              '${valorAtual.toStringAsFixed(1)} / ${valorTotal.toStringAsFixed(1)} $sufixo',
+              '${valorAtual.toStringAsFixed(0)} / ${valorTotal.toStringAsFixed(0)} $sufixo',
               style: TextStyle(fontWeight: FontWeight.bold, color: cor),
             ),
           ],

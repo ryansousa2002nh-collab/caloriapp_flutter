@@ -42,7 +42,12 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
     _refeicoes = List.from(widget.paciente.planoAlimentar);
   }
 
-  int get _totalConsumido => widget.paciente.totalCaloriasConsumidasHoje;
+  int get _totalPlano =>
+      _refeicoes.fold(0, (soma, r) => soma + r.totalCalorias);
+
+  int get _totalConsumido => widget.paciente.totalCaloriasConsumidasHoje > 0
+      ? widget.paciente.totalCaloriasConsumidasHoje
+      : _totalPlano;
 
   int get _totalFormAtual =>
       _ingredientesForm.fold(0, (soma, i) => soma + i.calorias);
@@ -229,7 +234,6 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
               decoration: const InputDecoration(
                 labelText: 'Meta diária',
                 suffixText: 'kcal',
-                border: OutlineInputBorder(),
               ),
             ),
           ],
@@ -280,35 +284,9 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
             ),
           ],
         ),
-        actions: [
-          const AppleThemeToggle(size: 28),
-          const SizedBox(width: 4),
-          // Tag de status financeiro
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: widget.paciente.isPago ? AppColors.getVerdeDestaque(context) : AppColors.getVermelhoDestaque(context),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: widget.paciente.isPago ? AppColors.getVerdeDestaqueBorda(context) : AppColors.getVermelhoDestaqueBorda(context),
-                  ),
-                ),
-                child: Text(
-                  '${widget.paciente.valorFormatado} • ${widget.paciente.statusTexto}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: widget.paciente.isPago
-                        ? (isDark ? const Color(0xFF4ADE80) : AppColors.verde)
-                        : (isDark ? const Color(0xFFF87171) : AppColors.vermelho),
-                  ),
-                ),
-              ),
-            ),
-          ),
+        actions: const [
+          AppleThemeToggle(size: 28),
+          SizedBox(width: 8),
         ],
       ),
       body: SingleChildScrollView(
@@ -487,7 +465,6 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                               decoration: const InputDecoration(
                                 labelText: 'Tipo de refeição',
                                 hintText: 'Ex: Almoço',
-                                border: OutlineInputBorder(),
                                 isDense: true,
                               ),
                               onChanged: (valor) => _tipo = valor,
@@ -501,7 +478,6 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                               initialValue: _horario,
                               decoration: const InputDecoration(
                                 labelText: 'Horário',
-                                border: OutlineInputBorder(),
                                 isDense: true,
                                 suffixIcon: Icon(Icons.access_time, size: 18),
                               ),
@@ -607,7 +583,6 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                         initialValue: _observacoes,
                         decoration: const InputDecoration(
                           labelText: 'Observações (Substituições, modo de preparo...)',
-                          border: OutlineInputBorder(),
                         ),
                         maxLines: 2,
                         onChanged: (valor) => _observacoes = valor,
@@ -651,7 +626,7 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                   ),
                 ),
                 Text(
-                  'Total: $_totalConsumido kcal',
+                  'Total: $_totalPlano kcal',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -782,7 +757,6 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                     labelText: 'Alimento',
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                    border: OutlineInputBorder(),
                   ),
                   items: BancoAlimentos.lista.map((alimento) {
                     return DropdownMenuItem(
@@ -814,7 +788,6 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                     labelText: 'Gramas (g)',
                     isDense: true,
                     contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                    border: OutlineInputBorder(),
                     suffixText: 'g',
                   ),
                   onChanged: (valor) {

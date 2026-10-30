@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import '../models/paciente_model.dart';
-import '../services/api_service.dart';
-import '../theme/app_theme.dart';
+
+import '../../modulos_arquivados/models/paciente_model.dart';
+import '../../modulos_arquivados/services/api_service.dart';
+import '../../modulos_arquivados/theme/app_theme.dart';
 
 class CriarTreinoPage extends StatefulWidget {
   final PacienteModel paciente;
@@ -14,12 +15,12 @@ class CriarTreinoPage extends StatefulWidget {
 
 class _CriarTreinoPageState extends State<CriarTreinoPage> {
   final _nomeTreinoController = TextEditingController();
-  
+
   bool _carregandoExercicios = true;
   bool _salvando = false;
-  
+
   List<dynamic> _todosExercicios = []; // from backend
-  
+
   // Represents the items the personal adds to this workout plan
   // structure: {'exercicio_id': int, 'exercicio_nome': string, 'series': int, 'repeticoes': int, 'observacoes': string}
   final List<Map<String, dynamic>> _itensTreino = [];
@@ -71,7 +72,10 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
                   children: [
                     const Text(
                       'Adicionar Exercício',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<int>(
@@ -130,24 +134,33 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.verde),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.verde,
+                        ),
                         onPressed: () {
                           if (exercicioSelecionado == null) return;
-                          
-                          final exModel = _todosExercicios.firstWhere((e) => e['id'] == exercicioSelecionado);
-                          
+
+                          final exModel = _todosExercicios.firstWhere(
+                            (e) => e['id'] == exercicioSelecionado,
+                          );
+
                           setState(() {
                             _itensTreino.add({
                               'exercicio': exercicioSelecionado,
                               'exercicio_nome': exModel['nome'],
-                              'series': int.tryParse(seriesController.text) ?? 0,
-                              'repeticoes': int.tryParse(repeticoesController.text) ?? 0,
+                              'series':
+                                  int.tryParse(seriesController.text) ?? 0,
+                              'repeticoes':
+                                  int.tryParse(repeticoesController.text) ?? 0,
                               'observacoes': obsController.text,
                             });
                           });
                           Navigator.pop(context);
                         },
-                        child: const Text('Adicionar', style: TextStyle(color: Colors.white)),
+                        child: const Text(
+                          'Adicionar',
+                          style: TextStyle(color: Colors.white),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
@@ -163,11 +176,14 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
 
   Future<void> _salvarTreino() async {
     if (_nomeTreinoController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dê um nome ao treino.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Dê um nome ao treino.')));
       return;
     }
     if (_itensTreino.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Adicione pelo menos um exercício.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Adicione pelo menos um exercício.')),
+      );
       return;
     }
 
@@ -181,10 +197,12 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
       };
 
       final sucesso = await ApiService.salvarTreino(dados);
-      
+
       if (sucesso) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Treino criado com sucesso!')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Treino criado com sucesso!')),
+          );
           Navigator.pop(context);
         }
       } else {
@@ -193,7 +211,8 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
     } catch (e) {
       setState(() => _salvando = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar treino: $e')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Erro ao salvar treino: $e')));
       }
     }
   }
@@ -201,9 +220,7 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Treino de ${widget.paciente.nome}'),
-      ),
+      appBar: AppBar(title: Text('Treino de ${widget.paciente.nome}')),
       body: _carregandoExercicios
           ? const Center(child: CircularProgressIndicator())
           : Padding(
@@ -222,12 +239,20 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Exercícios', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      const Text(
+                        'Exercícios',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       TextButton.icon(
                         onPressed: _abrirModalAdicionarExercicio,
                         icon: const Icon(Icons.add),
                         label: const Text('Adicionar'),
-                        style: TextButton.styleFrom(foregroundColor: AppColors.verde),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.verde,
+                        ),
                       ),
                     ],
                   ),
@@ -249,10 +274,17 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
                                 child: ListTile(
                                   leading: const Icon(Icons.fitness_center),
                                   title: Text(item['exercicio_nome']),
-                                  subtitle: Text('${item['series']} séries de ${item['repeticoes']} repetições\nObs: ${item['observacoes']}'),
-                                  isThreeLine: item['observacoes'].toString().isNotEmpty,
+                                  subtitle: Text(
+                                    '${item['series']} séries de ${item['repeticoes']} repetições\nObs: ${item['observacoes']}',
+                                  ),
+                                  isThreeLine: item['observacoes']
+                                      .toString()
+                                      .isNotEmpty,
                                   trailing: IconButton(
-                                    icon: const Icon(Icons.delete, color: Colors.red),
+                                    icon: const Icon(
+                                      Icons.delete,
+                                      color: Colors.red,
+                                    ),
                                     onPressed: () {
                                       setState(() {
                                         _itensTreino.removeAt(index);
@@ -268,13 +300,22 @@ class _CriarTreinoPageState extends State<CriarTreinoPage> {
                     width: double.infinity,
                     height: 50,
                     child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.verde),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.verde,
+                      ),
                       onPressed: _salvando ? null : _salvarTreino,
                       child: _salvando
                           ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('Salvar Treino', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                          : const Text(
+                              'Salvar Treino',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
-                  )
+                  ),
                 ],
               ),
             ),

@@ -2,7 +2,7 @@ import 'alimento_model.dart';
 
 class ItemRegistroDiarioModel {
   final int? id;
-  final String? refeicaoNome; // Nome da refeicao planejada
+  final String? refeicaoNome; // Nome da refeição planejada
   final int? refeicaoPlanejadaId;
   String? alimentoNome;
   double gramas;
@@ -23,9 +23,11 @@ class ItemRegistroDiarioModel {
 
   factory ItemRegistroDiarioModel.fromJson(Map<String, dynamic> json) {
     return ItemRegistroDiarioModel(
-      id: json['id'],
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? ''),
       refeicaoNome: json['refeicao_nome'],
-      refeicaoPlanejadaId: json['refeicao_planejada'],
+      refeicaoPlanejadaId: json['refeicao_planejada'] is int
+          ? json['refeicao_planejada']
+          : int.tryParse(json['refeicao_planejada']?.toString() ?? ''),
       alimentoNome: json['alimento_nome'] ?? json['nome'],
       gramas: double.tryParse(json['quantidade_gramas']?.toString() ?? '0') ?? 0,
       caloriasManual: json['calorias_manual'] != null ? int.tryParse(json['calorias_manual'].toString()) : null,
@@ -36,6 +38,8 @@ class ItemRegistroDiarioModel {
 
   Map<String, dynamic> toJson() {
     return {
+      if (id != null) 'id': id,
+      'refeicao_nome': refeicaoNome,
       'refeicao_planejada': refeicaoPlanejadaId,
       'alimento_nome': alimentoNome,
       'quantidade_gramas': gramas,
@@ -69,7 +73,7 @@ class RegistroDiarioModel {
   factory RegistroDiarioModel.fromJson(Map<String, dynamic> json) {
     var itensList = json['itens'] as List? ?? [];
     return RegistroDiarioModel(
-      id: json['id'].toString(),
+      id: (json['id'] ?? 'reg_${DateTime.now().millisecondsSinceEpoch}').toString(),
       data: json['data'],
       totalCaloriasAPI: json['total_calorias'] != null ? int.tryParse(json['total_calorias'].toString()) : null,
       itens: itensList.map((e) => ItemRegistroDiarioModel.fromJson(e as Map<String, dynamic>)).toList(),
@@ -78,9 +82,17 @@ class RegistroDiarioModel {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
+      'data': data,
+      'total_calorias': totalCalorias,
       'itens': itens.map((e) => e.toJson()).toList(),
     };
   }
 
-  int get totalCalorias => (totalCaloriasAPI != null && totalCaloriasAPI! > 0) ? totalCaloriasAPI! : itens.fold(0, (soma, item) => soma + item.calorias);
+  int get totalCalorias {
+    if (itens.isNotEmpty) {
+      return itens.fold(0, (soma, item) => soma + item.calorias);
+    }
+    return totalCaloriasAPI ?? 0;
+  }
 }

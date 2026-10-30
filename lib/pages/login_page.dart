@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../services/api_service.dart';
 import '../services/dados_service.dart';
 import '../theme/app_theme.dart';
@@ -13,9 +14,10 @@ class LoginPage extends StatefulWidget {
   State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMixin {
+class _LoginPageState extends State<LoginPage>
+    with SingleTickerProviderStateMixin {
   final _usernameController = TextEditingController(text: 'paciente.teste');
-  final _passwordController = TextEditingController(text: '123'); 
+  final _passwordController = TextEditingController(text: '123');
 
   String _erro = '';
   bool _carregando = false;
@@ -26,8 +28,13 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOut));
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
+    );
     _animationController.forward();
   }
 
@@ -54,9 +61,15 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
         setState(() => _carregando = false);
 
         if (tipoStr == 'NUTRI') {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const PacientesPage()));
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const PacientesPage()),
+          );
         } else {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const RefeicoesPage()));
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const RefeicoesPage()),
+          );
         }
       } else {
         setState(() {
@@ -66,7 +79,7 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
       }
     } catch (_) {
       setState(() {
-        _erro = 'Usuário ou senha inválidos'; 
+        _erro = 'Usuário ou senha inválidos';
         _carregando = false;
       });
     }
@@ -96,19 +109,43 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(20),
+                    width: 210,
+                    height: 210,
                     decoration: BoxDecoration(
-                      color: theme.primaryColor.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
+                      color: const Color(0xFFFAF9F5),
+                      border: Border.all(
+                        color: const Color(0xFFDCE3CE),
+                        width: 2.5,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.10),
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
-                    child: Icon(Icons.eco_rounded, size: 56, color: theme.primaryColor),
+                    child: ClipOval(
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: Image.asset(
+                          'assets/images/logo_nutri.jpg',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  Text('CaloriApp', style: theme.textTheme.titleLarge?.copyWith(fontSize: 32)),
+                  const SizedBox(height: AppSpacing.md),
+                  //O NOME DO APP POSSIVELMENTE FICARÁ AQUI...
                   const SizedBox(height: AppSpacing.xs),
                   Text(
-                    'Alcance seus resultados nutricionais.',
-                    style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6), fontSize: 16),
+                    'Cuidado que nutre, saúde que floresce.',
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                      fontSize: 16,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: AppSpacing.xl),
 
@@ -127,28 +164,58 @@ class _LoginPageState extends State<LoginPage> with SingleTickerProviderStateMix
                       labelText: 'Senha',
                       prefixIcon: const Icon(Icons.lock_outline),
                       suffixIcon: IconButton(
-                        icon: Icon(_senhaOculta ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                        onPressed: () => setState(() => _senhaOculta = !_senhaOculta),
+                        icon: Icon(
+                          _senhaOculta
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                        ),
+                        onPressed: () =>
+                            setState(() => _senhaOculta = !_senhaOculta),
                       ),
                     ),
                   ),
 
                   if (_erro.isNotEmpty) ...[
                     const SizedBox(height: AppSpacing.md),
-                    Text(_erro, style: TextStyle(color: theme.colorScheme.error, fontSize: 14), textAlign: TextAlign.center),
+                    Text(
+                      _erro,
+                      style: TextStyle(
+                        color: theme.colorScheme.error,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ],
 
                   const SizedBox(height: AppSpacing.xl),
                   ElevatedButton(
                     onPressed: _carregando ? null : _fazerLogin,
                     child: _carregando
-                        ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
                         : const Text('Entrar'),
                   ),
                   const SizedBox(height: AppSpacing.md),
                   TextButton(
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const CadastroPage())),
-                    child: Text('Não tem conta? Cadastre-se', style: TextStyle(color: theme.primaryColor, fontWeight: FontWeight.w600)),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CadastroPage(),
+                      ),
+                    ),
+                    child: Text(
+                      'Não tem conta? Cadastre-se',
+                      style: TextStyle(
+                        color: theme.primaryColor,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
                   ),
                 ],
               ),

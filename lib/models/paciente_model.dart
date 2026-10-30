@@ -9,10 +9,10 @@ enum StatusFinanceiro {
 
 class PacienteModel {
   final int id;
-  final String nome;
-  final String usuario;
-  final String? email;
-  final String? fotoUrl;
+  String nome;
+  String usuario;
+  String? email;
+  String? fotoUrl;
   StatusFinanceiro statusFinanceiro;
   double valorMensalidade;
   double metaCalorica;
@@ -37,19 +37,39 @@ class PacienteModel {
        metas = metas ?? MetasModel();
 
   factory PacienteModel.fromJson(Map<String, dynamic> json) {
-    var planoList = json['plano_alimentar'] as List? ?? [];
+    final planoList = json['plano_alimentar'] as List? ?? [];
+    final registrosList = json['registros_diarios'] as List? ?? [];
     return PacienteModel(
-      id: json['id'],
+      id: json['id'] is int ? json['id'] : int.tryParse(json['id']?.toString() ?? '0') ?? 0,
       nome: json['nome'] ?? json['username'] ?? '',
-      usuario: json['username'] ?? '',
+      usuario: json['username'] ?? json['usuario'] ?? '',
       email: json['email'],
       fotoUrl: json['foto_url'],
       statusFinanceiro: json['status_financeiro'] == 'pago' ? StatusFinanceiro.pago : StatusFinanceiro.debito,
       valorMensalidade: double.tryParse(json['valor_mensalidade']?.toString() ?? '400') ?? 400.0,
       metaCalorica: double.tryParse(json['meta_calorica']?.toString() ?? '2000') ?? 2000.0,
       planoAlimentar: planoList.map((e) => RefeicaoModel.fromJson(e as Map<String, dynamic>)).toList(),
-      registrosDiarios: [], // Será preenchido separadamente através da API de registros
+      registrosDiarios: registrosList.map((e) => RegistroDiarioModel.fromJson(e as Map<String, dynamic>)).toList(),
+      metas: json['metas'] is Map<String, dynamic>
+          ? MetasModel.fromJson(json['metas'] as Map<String, dynamic>)
+          : MetasModel.fromJson(json),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'nome': nome,
+      'username': usuario,
+      'email': email,
+      'foto_url': fotoUrl,
+      'status_financeiro': statusFinanceiro == StatusFinanceiro.pago ? 'pago' : 'debito',
+      'valor_mensalidade': valorMensalidade,
+      'meta_calorica': metaCalorica,
+      'plano_alimentar': planoAlimentar.map((e) => e.toJson()).toList(),
+      'registros_diarios': registrosDiarios.map((e) => e.toJson()).toList(),
+      'metas': metas.toJson(),
+    };
   }
 
   bool get isPago => statusFinanceiro == StatusFinanceiro.pago;
@@ -68,7 +88,11 @@ class PacienteModel {
 
   int get totalCaloriasConsumidasHoje {
     if (registrosDiarios.isEmpty) return 0;
-    // O primeiro registro é o mais recente ou do dia atual (se ordenado)
+    final hoje = DateTime.now().toIso8601String().split('T').first;
+    final regsHoje = registrosDiarios.where((r) => r.data == null || r.data == hoje).toList();
+    if (regsHoje.isNotEmpty) {
+      return regsHoje.fold(0, (soma, r) => soma + r.totalCalorias);
+    }
     return registrosDiarios.first.totalCalorias;
   }
 

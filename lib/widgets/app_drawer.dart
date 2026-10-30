@@ -3,8 +3,8 @@ import '../pages/login_page.dart';
 import '../pages/pacientes_page.dart';
 import '../pages/refeicoes_page.dart';
 import '../pages/historico_page.dart';
-import '../pages/financeiro_page.dart';
 import '../pages/configuracoes_page.dart';
+import '../services/api_service.dart';
 import '../services/dados_service.dart';
 import '../theme/app_theme.dart';
 import 'apple_theme_toggle.dart';
@@ -42,15 +42,18 @@ class AppDrawer extends StatelessWidget {
                     child: Row(
                       children: [
                         CircleAvatar(
-                          radius: 20,
+                          radius: 22,
                           backgroundColor: AppColors.verde,
-                          child: Text(
-                            isNutri ? 'JN' : 'CL',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          backgroundImage: isNutri ? const AssetImage('assets/images/logo_nutri.jpg') : null,
+                          child: isNutri
+                              ? null
+                              : const Text(
+                                  'CL',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -58,7 +61,7 @@ class AppDrawer extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                isNutri ? 'Dra. Juliana Nutri' : 'Meu Perfil',
+                                isNutri ? dadosService.nomeNutri : dadosService.getPacienteAtivo().nome,
                                 style: TextStyle(
                                   color: AppColors.getTextoPrincipal(context),
                                   fontSize: 15,
@@ -142,22 +145,6 @@ class AppDrawer extends StatelessWidget {
 
                   _drawerItem(
                     context,
-                    icone: Icons.attach_money_outlined,
-                    texto: 'Financeiro',
-                    ativo: paginaAtual == 'financeiro',
-                    onTap: () {
-                      Navigator.pop(context);
-                      if (paginaAtual != 'financeiro') {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (context) => const FinanceiroPage()),
-                        );
-                      }
-                    },
-                  ),
-
-                  _drawerItem(
-                    context,
                     icone: Icons.settings_outlined,
                     texto: 'Configurações',
                     ativo: paginaAtual == 'configuracoes',
@@ -191,7 +178,9 @@ class AppDrawer extends StatelessWidget {
                 texto: 'Sair do aplicativo',
                 ativo: false,
                 corIcone: AppColors.vermelho,
-                onTap: () {
+                onTap: () async {
+                  await ApiService.logout();
+                  if (!context.mounted) return;
                   Navigator.pushAndRemoveUntil(
                     context,
                     MaterialPageRoute(builder: (context) => const LoginPage()),
