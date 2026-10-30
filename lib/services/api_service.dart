@@ -8,6 +8,8 @@ class ApiService {
   static const Duration _timeout = Duration(seconds: 2);
   static const String _localPacientesKey = 'local_backend_pacientes_v1';
   static const String _localPreCadastrosKey = 'local_backend_precadastros_v1';
+  static const String _localComunidadeKey = 'local_backend_comunidade_v1';
+  static const String _localCategoriasComunidadeKey = 'local_backend_categorias_comunidade_v1';
 
   static String get baseUrl {
     if (kIsWeb) return 'http://127.0.0.1:8001/api/';
@@ -472,6 +474,478 @@ class ApiService {
     }
 
     return savedReg;
+  }
+
+  // --- Módulo Comunidade (API + Fallback Local Integrado) ---
+
+  static Future<List<dynamic>> getCategoriasComunidade() async {
+    final prefs = await SharedPreferences.getInstance();
+    await _garantirCategoriasComunidadeIniciais(prefs);
+    final token = prefs.getString('token');
+
+    if (token != null && !token.startsWith('local_token_')) {
+      try {
+        final response = await http
+            .get(
+              Uri.parse('${baseUrl}comunidade-categorias/'),
+              headers: {'Authorization': 'Token $token'},
+            )
+            .timeout(_timeout);
+        if (response.statusCode == 200) {
+          final list = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+          if (list.isNotEmpty) {
+            await prefs.setString(_localCategoriasComunidadeKey, jsonEncode(list));
+            return list;
+          }
+        }
+      } catch (_) {}
+    }
+
+    return _lerCategoriasComunidadeLocais(prefs);
+  }
+
+  static Future<Map<String, dynamic>> salvarCategoriaComunidade(
+    Map<String, dynamic> data, {
+    String? id,
+    String? slugAntigo,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await _garantirCategoriasComunidadeIniciais(prefs);
+    final token = prefs.getString('token');
+    final headers = {'Authorization': 'Token $token', 'Content-Type': 'application/json'};
+
+    if (token != null && !token.startsWith('local_token_')) {
+      try {
+        http.Response response;
+        if (id != null && id.isNotEmpty && !id.startsWith('cat_')) {
+          response = await http
+              .put(
+                Uri.parse('${baseUrl}comunidade-categorias/$id/'),
+                headers: headers,
+                body: jsonEncode(data),
+              )
+              .timeout(_timeout);
+        } else {
+          response = await http
+              .post(
+                Uri.parse('${baseUrl}comunidade-categorias/'),
+                headers: headers,
+                body: jsonEncode(data),
+              )
+              .timeout(_timeout);
+        }
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          final saved = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+          await _atualizarOuInserirCategoriaLocal(prefs, saved, slugAntigo: slugAntigo);
+          return saved;
+        }
+      } catch (_) {}
+    }
+
+    final savedCat = Map<String, dynamic>.from(data);
+    savedCat['id'] = (id != null && id.isNotEmpty) ? id : 'cat_${DateTime.now().millisecondsSinceEpoch}';
+    await _atualizarOuInserirCategoriaLocal(prefs, savedCat, slugAntigo: slugAntigo);
+    return savedCat;
+  }
+
+  static Future<bool> excluirCategoriaComunidade(String id, String slug) async {
+    final prefs = await SharedPreferences.getInstance();
+    await _garantirCategoriasComunidadeIniciais(prefs);
+    final token = prefs.getString('token');
+
+    if (token != null && !token.startsWith('local_token_') && !id.startsWith('cat_')) {
+      try {
+        await http
+            .delete(
+              Uri.parse('${baseUrl}comunidade-categorias/$id/'),
+              headers: {'Authorization': 'Token $token'},
+            )
+            .timeout(_timeout);
+      } catch (_) {}
+    }
+
+    final categorias = await _lerCategoriasComunidadeLocais(prefs);
+    categorias.removeWhere((c) => c['id'].toString() == id || c['slug'].toString() == slug);
+    await prefs.setString(_localCategoriasComunidadeKey, jsonEncode(categorias));
+
+    // Reatribui postagens da categoria removida para a primeira disponível ou 'receita'
+    final slugDestino = categorias.isNotEmpty ? categorias.first['slug'].toString() : 'receita';
+    final nomeDestino = categorias.isNotEmpty ? categorias.first['nome'].toString() : 'Receitas';
+    final postagens = await _lerPostagensComunidadeLocais(prefs);
+    for (int i = 0; i < postagens.length; i++) {
+      final p = Map<String, dynamic>.from(postagens[i] as Map);
+      if (p['categoria']?.toString() == slug) {
+        p['categoria'] = slugDestino;
+        p['categoria_nome'] = nomeDestino;
+        postagens[i] = p;
+      }
+    }
+    await _salvarPostagensComunidadeLocais(prefs, postagens);
+    return true;
+  }
+
+  static Future<List<dynamic>> _lerCategoriasComunidadeLocais(SharedPreferences prefs) async {
+    final raw = prefs.getString(_localCategoriasComunidadeKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      return jsonDecode(raw) as List<dynamic>;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> _atualizarOuInserirCategoriaLocal(
+    SharedPreferences prefs,
+    Map<String, dynamic> cat, {
+    String? slugAntigo,
+  }) async {
+    final categorias = await _lerCategoriasComunidadeLocais(prefs);
+    final idx = categorias.indexWhere(
+      (c) =>
+          c['id'].toString() == cat['id'].toString() ||
+          (slugAntigo != null && c['slug'].toString() == slugAntigo) ||
+          c['slug'].toString() == cat['slug'].toString(),
+    );
+    if (idx >= 0) {
+      categorias[idx] = cat;
+    } else {
+      categorias.add(cat);
+    }
+    await prefs.setString(_localCategoriasComunidadeKey, jsonEncode(categorias));
+
+    if (slugAntigo != null && slugAntigo.isNotEmpty) {
+      final postagens = await _lerPostagensComunidadeLocais(prefs);
+      for (int i = 0; i < postagens.length; i++) {
+        final p = Map<String, dynamic>.from(postagens[i] as Map);
+        if (p['categoria']?.toString() == slugAntigo) {
+          p['categoria'] = cat['slug'];
+          p['categoria_nome'] = cat['nome'];
+          postagens[i] = p;
+        }
+      }
+      await _salvarPostagensComunidadeLocais(prefs, postagens);
+    }
+  }
+
+  static Future<void> _garantirCategoriasComunidadeIniciais(SharedPreferences prefs) async {
+    if (prefs.containsKey(_localCategoriasComunidadeKey)) return;
+    final iniciais = [
+      {'id': 'cat_receita', 'slug': 'receita', 'nome': 'Receitas', 'icone': 'receita'},
+      {'id': 'cat_prato', 'slug': 'prato', 'nome': 'Pratos', 'icone': 'prato'},
+      {'id': 'cat_dica', 'slug': 'dica', 'nome': 'Dicas', 'icone': 'dica'},
+      {'id': 'cat_texto', 'slug': 'texto', 'nome': 'Textos', 'icone': 'texto'},
+    ];
+    await prefs.setString(_localCategoriasComunidadeKey, jsonEncode(iniciais));
+  }
+
+  static Future<List<dynamic>> getPostagensComunidade() async {
+    final prefs = await SharedPreferences.getInstance();
+    await _garantirPostagensComunidadeIniciais(prefs);
+    final token = prefs.getString('token');
+
+    if (token != null && !token.startsWith('local_token_')) {
+      try {
+        final response = await http
+            .get(
+              Uri.parse('${baseUrl}comunidade/'),
+              headers: {'Authorization': 'Token $token'},
+            )
+            .timeout(_timeout);
+        if (response.statusCode == 200) {
+          final list = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+          await _salvarPostagensComunidadeLocais(prefs, list);
+          return list;
+        }
+      } catch (_) {}
+    }
+
+    return _lerPostagensComunidadeLocais(prefs);
+  }
+
+  static Future<Map<String, dynamic>?> salvarPostagemComunidade(
+    Map<String, dynamic> data, {
+    String? id,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await _garantirPostagensComunidadeIniciais(prefs);
+    final token = prefs.getString('token');
+    final headers = {'Authorization': 'Token $token', 'Content-Type': 'application/json'};
+
+    if (token != null && !token.startsWith('local_token_')) {
+      try {
+        http.Response response;
+        if (id != null && id.isNotEmpty && !id.startsWith('post_')) {
+          response = await http
+              .put(
+                Uri.parse('${baseUrl}comunidade/$id/'),
+                headers: headers,
+                body: jsonEncode(data),
+              )
+              .timeout(_timeout);
+        } else {
+          response = await http
+              .post(
+                Uri.parse('${baseUrl}comunidade/'),
+                headers: headers,
+                body: jsonEncode(data),
+              )
+              .timeout(_timeout);
+        }
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          final saved = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+          await _atualizarOuInserirPostLocal(prefs, saved);
+          return saved;
+        }
+      } catch (_) {}
+    }
+
+    final postagens = await _lerPostagensComunidadeLocais(prefs);
+    final savedPost = Map<String, dynamic>.from(data);
+    savedPost['id'] = (id != null && id.isNotEmpty) ? id : 'post_${DateTime.now().millisecondsSinceEpoch}';
+    savedPost['data_criacao'] = savedPost['data_criacao'] ?? DateTime.now().toIso8601String();
+    savedPost['autor_nome'] = savedPost['autor_nome'] ?? 'Dra. Juliana Braz';
+
+    final index = postagens.indexWhere((p) => p['id'].toString() == savedPost['id'].toString());
+    if (index >= 0) {
+      final existente = Map<String, dynamic>.from(postagens[index] as Map);
+      savedPost['total_curtidas'] = existente['total_curtidas'] ?? 0;
+      savedPost['curtido_por_mim'] = existente['curtido_por_mim'] ?? false;
+      savedPost['salvo_por_mim'] = existente['salvo_por_mim'] ?? false;
+      postagens[index] = savedPost;
+    } else {
+      savedPost['total_curtidas'] = savedPost['total_curtidas'] ?? 0;
+      savedPost['curtido_por_mim'] = savedPost['curtido_por_mim'] ?? false;
+      savedPost['salvo_por_mim'] = savedPost['salvo_por_mim'] ?? false;
+      postagens.insert(0, savedPost);
+    }
+
+    await _salvarPostagensComunidadeLocais(prefs, postagens);
+    return savedPost;
+  }
+
+  static Future<bool> excluirPostagemComunidade(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (token != null && !token.startsWith('local_token_') && !id.startsWith('post_')) {
+      try {
+        final response = await http
+            .delete(
+              Uri.parse('${baseUrl}comunidade/$id/'),
+              headers: {'Authorization': 'Token $token'},
+            )
+            .timeout(_timeout);
+        if (response.statusCode == 204) {
+          final postagens = await _lerPostagensComunidadeLocais(prefs);
+          postagens.removeWhere((p) => p['id'].toString() == id);
+          await _salvarPostagensComunidadeLocais(prefs, postagens);
+          return true;
+        }
+      } catch (_) {}
+    }
+
+    final postagens = await _lerPostagensComunidadeLocais(prefs);
+    postagens.removeWhere((p) => p['id'].toString() == id);
+    await _salvarPostagensComunidadeLocais(prefs, postagens);
+    return true;
+  }
+
+  static Future<Map<String, dynamic>?> alternarCurtidaPostagemComunidade(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (token != null && !token.startsWith('local_token_') && !id.startsWith('post_')) {
+      try {
+        final response = await http
+            .post(
+              Uri.parse('${baseUrl}comunidade/$id/curtir/'),
+              headers: {'Authorization': 'Token $token'},
+            )
+            .timeout(_timeout);
+        if (response.statusCode == 200) {
+          final result = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+          final postagens = await _lerPostagensComunidadeLocais(prefs);
+          final idx = postagens.indexWhere((p) => p['id'].toString() == id);
+          if (idx >= 0) {
+            final p = Map<String, dynamic>.from(postagens[idx] as Map);
+            p['curtido_por_mim'] = result['curtido_por_mim'];
+            p['total_curtidas'] = result['total_curtidas'];
+            postagens[idx] = p;
+            await _salvarPostagensComunidadeLocais(prefs, postagens);
+          }
+          return result;
+        }
+      } catch (_) {}
+    }
+
+    final postagens = await _lerPostagensComunidadeLocais(prefs);
+    final idx = postagens.indexWhere((p) => p['id'].toString() == id);
+    if (idx >= 0) {
+      final p = Map<String, dynamic>.from(postagens[idx] as Map);
+      final jaCurtido = p['curtido_por_mim'] == true;
+      final totalAtual = int.tryParse((p['total_curtidas'] ?? 0).toString()) ?? 0;
+      p['curtido_por_mim'] = !jaCurtido;
+      p['total_curtidas'] = jaCurtido ? (totalAtual > 0 ? totalAtual - 1 : 0) : totalAtual + 1;
+      postagens[idx] = p;
+      await _salvarPostagensComunidadeLocais(prefs, postagens);
+      return {
+        'id': id,
+        'curtido_por_mim': p['curtido_por_mim'],
+        'total_curtidas': p['total_curtidas'],
+      };
+    }
+    return null;
+  }
+
+  static Future<Map<String, dynamic>?> alternarSalvarPostagemComunidade(String id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    if (token != null && !token.startsWith('local_token_') && !id.startsWith('post_')) {
+      try {
+        final response = await http
+            .post(
+              Uri.parse('${baseUrl}comunidade/$id/salvar/'),
+              headers: {'Authorization': 'Token $token'},
+            )
+            .timeout(_timeout);
+        if (response.statusCode == 200) {
+          final result = jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+          final postagens = await _lerPostagensComunidadeLocais(prefs);
+          final idx = postagens.indexWhere((p) => p['id'].toString() == id);
+          if (idx >= 0) {
+            final p = Map<String, dynamic>.from(postagens[idx] as Map);
+            p['salvo_por_mim'] = result['salvo_por_mim'];
+            postagens[idx] = p;
+            await _salvarPostagensComunidadeLocais(prefs, postagens);
+          }
+          return result;
+        }
+      } catch (_) {}
+    }
+
+    final postagens = await _lerPostagensComunidadeLocais(prefs);
+    final idx = postagens.indexWhere((p) => p['id'].toString() == id);
+    if (idx >= 0) {
+      final p = Map<String, dynamic>.from(postagens[idx] as Map);
+      final jaSalvo = p['salvo_por_mim'] == true;
+      p['salvo_por_mim'] = !jaSalvo;
+      postagens[idx] = p;
+      await _salvarPostagensComunidadeLocais(prefs, postagens);
+      return {
+        'id': id,
+        'salvo_por_mim': p['salvo_por_mim'],
+      };
+    }
+    return null;
+  }
+
+  static Future<List<dynamic>> _lerPostagensComunidadeLocais(SharedPreferences prefs) async {
+    final raw = prefs.getString(_localComunidadeKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      return jsonDecode(raw) as List<dynamic>;
+    } catch (_) {
+      return [];
+    }
+  }
+
+  static Future<void> _salvarPostagensComunidadeLocais(
+    SharedPreferences prefs,
+    List<dynamic> postagens,
+  ) async {
+    await prefs.setString(_localComunidadeKey, jsonEncode(postagens));
+  }
+
+  static Future<void> _atualizarOuInserirPostLocal(
+    SharedPreferences prefs,
+    Map<String, dynamic> post,
+  ) async {
+    final postagens = await _lerPostagensComunidadeLocais(prefs);
+    final idx = postagens.indexWhere((p) => p['id'].toString() == post['id'].toString());
+    if (idx >= 0) {
+      postagens[idx] = post;
+    } else {
+      postagens.insert(0, post);
+    }
+    await _salvarPostagensComunidadeLocais(prefs, postagens);
+  }
+
+  static Future<void> _garantirPostagensComunidadeIniciais(SharedPreferences prefs) async {
+    if (prefs.containsKey(_localComunidadeKey)) return;
+
+    final agora = DateTime.now();
+    final postagensIniciais = [
+      {
+        'id': 'post_1',
+        'titulo': 'Bolo de laranja funcional com farelo de aveia',
+        'categoria': 'receita',
+        'texto':
+            'Sabe aquele cheirinho de bolo saindo do forno no fim da tarde? Essa versão de bolo de laranja leva a fruta inteira (sem as sementes e sem a parte branca), farelo de aveia e ovos caipiras — sem farinha branca e sem açúcar refinado!\n\nIngredientes principais:\n• 1 laranja pera média (cortada em 4, sem sementes e sem o miolo branco)\n• 3 ovos inteiros\n• 1/2 xícara de óleo de coco ou azeite suave\n• 1/2 xícara de uvas-passas brancas ou tâmaras (para adoçar naturalmente)\n• 1 e 1/2 xícara de farelo de aveia\n• 1 colher (sopa) de fermento em pó\n\nModo de preparo:\nBata no liquidificador a laranja, os ovos, o azeite e as passas até ficar homogêneo. Misture o farelo de aveia e o fermento delicadamente. Asse em forno pré-aquecido a 180 °C por 35 minutos. Fica super úmido e rico em fibras!',
+        'foto_url':
+            'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=900&q=80',
+        'link_externo': 'https://www.instagram.com/p/C8boloDeLaranjaNutri/',
+        'tempo_preparo': '35 min',
+        'calorias_porcao': 165,
+        'autor_nome': 'Dra. Juliana Braz',
+        'data_criacao': agora.subtract(const Duration(hours: 4)).toIso8601String(),
+        'total_curtidas': 28,
+        'curtido_por_mim': true,
+        'salvo_por_mim': true,
+      },
+      {
+        'id': 'post_2',
+        'titulo': 'Prato colorido de almoço: grelhado cítrico + raízes assadas',
+        'categoria': 'prato',
+        'texto':
+            'Montar um prato equilibrado na correria da semana não precisa ser complicado! A regra visual de ouro é preencher 50% do prato com vegetais crus e cozidos variados, 25% com proteína magra (aqui usei filé de tilápia grelhado com limão siciliano e ervas) e 25% com carboidratos ricos em fibras como abóbora cabotiá e grão-de-bico.\n\nPrepare os legumes assados de uma só vez no domingo e tenha refeições práticas por 4 dias seguidos!',
+        'foto_url':
+            'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=80',
+        'link_externo': 'https://www.instagram.com/p/C8pratoSaudavelNutri/',
+        'tempo_preparo': '20 min',
+        'calorias_porcao': 410,
+        'autor_nome': 'Dra. Juliana Braz',
+        'data_criacao': agora.subtract(const Duration(days: 1, hours: 3)).toIso8601String(),
+        'total_curtidas': 19,
+        'curtido_por_mim': false,
+        'salvo_por_mim': false,
+      },
+      {
+        'id': 'post_3',
+        'titulo': '3 estratégias simples para controlar a vontade de doce após o almoço',
+        'categoria': 'dica',
+        'texto':
+            'Sentir vontade de comer um docinho logo depois do almoço é muito comum, mas quando ela é intensa todos os dias, vale observar três pontos:\n\n1. Aporte de proteínas e fibras no prato principal: refeições pobres em fibras geram picos rápidos de glicose.\n2. Hidratação ao longo da manhã: muitas vezes confundimos sede leve com fome por açúcar.\n3. Sobremesa estratégica: 1 quadradinho (15g) de chocolate 70% cacau degustado devagar ou frutas cítricas ajudam a limpar o paladar sem sair da meta calórica.',
+        'foto_url':
+            'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?auto=format&fit=crop&w=900&q=80',
+        'link_externo': 'https://www.instagram.com/p/C8dicasDocesNutri/',
+        'tempo_preparo': 'Leitura 2 min',
+        'calorias_porcao': null,
+        'autor_nome': 'Dra. Juliana Braz',
+        'data_criacao': agora.subtract(const Duration(days: 3)).toIso8601String(),
+        'total_curtidas': 34,
+        'curtido_por_mim': false,
+        'salvo_por_mim': true,
+      },
+      {
+        'id': 'post_4',
+        'titulo': 'Constância vence a perfeição: como lidar com finais de semana',
+        'categoria': 'texto',
+        'texto':
+            'Nutrição de verdade não é sobre nunca comer uma fatia de pizza ou um bolo de aniversário com quem você ama. O resultado duradouro vem do que você faz em 85% a 90% das suas refeições na rotina.\n\nSe uma refeição saiu do planejado no sábado à noite, o próximo passo não é pular o café da manhã de domingo nem fazer jejum punitivo: é simplesmente beber água, dormir bem e retomar sua próxima refeição habitual com tranquilidade.',
+        'foto_url': null,
+        'link_externo': 'https://www.instagram.com/p/C8constanciaNutri/',
+        'tempo_preparo': 'Leitura 3 min',
+        'calorias_porcao': null,
+        'autor_nome': 'Dra. Juliana Braz',
+        'data_criacao': agora.subtract(const Duration(days: 5)).toIso8601String(),
+        'total_curtidas': 42,
+        'curtido_por_mim': true,
+        'salvo_por_mim': false,
+      },
+    ];
+
+    await _salvarPostagensComunidadeLocais(prefs, postagensIniciais);
   }
 
   // --- Helpers do Banco Local Integrado ---

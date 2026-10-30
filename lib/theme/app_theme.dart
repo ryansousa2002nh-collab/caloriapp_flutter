@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// Borda arredondada para campos de texto que mantém o rótulo (labelText)
@@ -102,6 +103,15 @@ class BrandColors {
   static const red100 = Color(0xFFFEE2E2);
   static const red500 = Color(0xFFEF4444);
   static const red900 = Color(0xFF7F1D1D);
+
+  // Culinary & Editorial Accents (Layer 1 Primitives)
+  static const amber400 = Color(0xFFF59E0B);
+  static const amber600 = Color(0xFFD97706);
+  static const berry500 = Color(0xFFE1306C);
+  static const berry600 = Color(0xFFE11D48);
+  static const plum600 = Color(0xFF833AB4);
+  static const citrus500 = Color(0xFFF77737);
+  static const mint300 = Color(0xFF86EFAC);
 }
 
 class SemanticColors {
@@ -112,6 +122,10 @@ class SemanticColors {
   static const textSecondaryLight = Color(0xFF314426);
   static const borderLight = Color(0xFFD5DEC6);
   static const primaryLight = Color(0xFF42582E);
+  static const highlightSurfaceLight = Color(0xFFEDF2E4);
+  static const highlightBorderLight = Color(0xFFC5D3B0);
+  static const socialAccentLight = BrandColors.berry500;
+  static const likeActiveLight = BrandColors.berry600;
 
   // Dark Mode Semantics
   static const bgDark = Color(0xFF162117);
@@ -120,6 +134,106 @@ class SemanticColors {
   static const textSecondaryDark = Color(0xFFC5D0B5);
   static const borderDark = Color(0xFF344935);
   static const primaryDark = Color(0xFF7D9660);
+  static const highlightSurfaceDark = Color(0xFF213322);
+  static const highlightBorderDark = Color(0xFF4A6B46);
+  static const socialAccentDark = BrandColors.berry500;
+  static const likeActiveDark = BrandColors.berry600;
+}
+
+/// Layer 3 Component Tokens for the Comunidade Module (design-system skill)
+@immutable
+class ComunidadeTheme extends ThemeExtension<ComunidadeTheme> {
+  final Color cardSurface;
+  final Color cardBorder;
+  final Color highlightSurface;
+  final Color highlightBorder;
+  final Color categoryTagText;
+  final Color socialAccent;
+  final Color likeActive;
+  final Color citrusStart;
+  final Color citrusEnd;
+
+  const ComunidadeTheme({
+    required this.cardSurface,
+    required this.cardBorder,
+    required this.highlightSurface,
+    required this.highlightBorder,
+    required this.categoryTagText,
+    required this.socialAccent,
+    required this.likeActive,
+    required this.citrusStart,
+    required this.citrusEnd,
+  });
+
+  static final light = ComunidadeTheme(
+    cardSurface: SemanticColors.cardLight.withValues(alpha: 0.94),
+    cardBorder: SemanticColors.borderLight,
+    highlightSurface: SemanticColors.highlightSurfaceLight,
+    highlightBorder: SemanticColors.highlightBorderLight,
+    categoryTagText: BrandColors.green700,
+    socialAccent: SemanticColors.socialAccentLight,
+    likeActive: SemanticColors.likeActiveLight,
+    citrusStart: BrandColors.amber400,
+    citrusEnd: BrandColors.amber600,
+  );
+
+  static final dark = ComunidadeTheme(
+    cardSurface: SemanticColors.cardDark.withValues(alpha: 0.92),
+    cardBorder: SemanticColors.borderDark,
+    highlightSurface: SemanticColors.highlightSurfaceDark,
+    highlightBorder: SemanticColors.highlightBorderDark,
+    categoryTagText: BrandColors.mint300,
+    socialAccent: SemanticColors.socialAccentDark,
+    likeActive: SemanticColors.likeActiveDark,
+    citrusStart: BrandColors.amber400,
+    citrusEnd: BrandColors.amber600,
+  );
+
+  static ComunidadeTheme of(BuildContext context) {
+    return Theme.of(context).extension<ComunidadeTheme>() ??
+        (Theme.of(context).brightness == Brightness.dark ? dark : light);
+  }
+
+  @override
+  ComunidadeTheme copyWith({
+    Color? cardSurface,
+    Color? cardBorder,
+    Color? highlightSurface,
+    Color? highlightBorder,
+    Color? categoryTagText,
+    Color? socialAccent,
+    Color? likeActive,
+    Color? citrusStart,
+    Color? citrusEnd,
+  }) {
+    return ComunidadeTheme(
+      cardSurface: cardSurface ?? this.cardSurface,
+      cardBorder: cardBorder ?? this.cardBorder,
+      highlightSurface: highlightSurface ?? this.highlightSurface,
+      highlightBorder: highlightBorder ?? this.highlightBorder,
+      categoryTagText: categoryTagText ?? this.categoryTagText,
+      socialAccent: socialAccent ?? this.socialAccent,
+      likeActive: likeActive ?? this.likeActive,
+      citrusStart: citrusStart ?? this.citrusStart,
+      citrusEnd: citrusEnd ?? this.citrusEnd,
+    );
+  }
+
+  @override
+  ComunidadeTheme lerp(ThemeExtension<ComunidadeTheme>? other, double t) {
+    if (other is! ComunidadeTheme) return this;
+    return ComunidadeTheme(
+      cardSurface: Color.lerp(cardSurface, other.cardSurface, t)!,
+      cardBorder: Color.lerp(cardBorder, other.cardBorder, t)!,
+      highlightSurface: Color.lerp(highlightSurface, other.highlightSurface, t)!,
+      highlightBorder: Color.lerp(highlightBorder, other.highlightBorder, t)!,
+      categoryTagText: Color.lerp(categoryTagText, other.categoryTagText, t)!,
+      socialAccent: Color.lerp(socialAccent, other.socialAccent, t)!,
+      likeActive: Color.lerp(likeActive, other.likeActive, t)!,
+      citrusStart: Color.lerp(citrusStart, other.citrusStart, t)!,
+      citrusEnd: Color.lerp(citrusEnd, other.citrusEnd, t)!,
+    );
+  }
 }
 
 class AppSpacing {
@@ -210,8 +324,16 @@ class AppTheme {
         foregroundColor: SemanticColors.textPrimaryLight,
         elevation: 0,
         centerTitle: true,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
       ),
       dividerColor: SemanticColors.borderLight,
+      extensions: <ThemeExtension<dynamic>>[
+        ComunidadeTheme.light,
+      ],
     );
   }
 
@@ -293,8 +415,16 @@ class AppTheme {
         foregroundColor: SemanticColors.textPrimaryDark,
         elevation: 0,
         centerTitle: true,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          statusBarBrightness: Brightness.dark,
+        ),
       ),
       dividerColor: SemanticColors.borderDark,
+      extensions: <ThemeExtension<dynamic>>[
+        ComunidadeTheme.dark,
+      ],
     );
   }
 }

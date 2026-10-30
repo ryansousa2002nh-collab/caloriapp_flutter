@@ -1,6 +1,7 @@
 import '../models/dieta_model.dart';
 import '../models/metas_model.dart';
 import '../models/paciente_model.dart';
+import '../models/postagem_comunidade_model.dart';
 import '../models/registro_diario_model.dart';
 import 'api_service.dart';
 
@@ -11,6 +12,8 @@ class DadosService {
   DadosService._interno();
 
   final List<PacienteModel> _pacientes = [];
+  final List<PostagemComunidadeModel> _postagensComunidade = [];
+  final List<CategoriaComunidadeModel> _categoriasComunidade = [];
   String _tipoUsuarioLogado = 'NUTRI'; // 'NUTRI' ou 'CLIENTE'
   String? _usernameLogado;
   String _nomeNutri = 'Dra. Juliana Braz';
@@ -41,7 +44,181 @@ class DadosService {
 
       // Carregar registros de hoje para todos os pacientes
       await carregarRegistrosDiarios(DateTime.now().toIso8601String().split('T').first);
+      await carregarPostagensComunidade();
     } catch (_) {}
+  }
+
+  Future<void> carregarPostagensComunidade() async {
+    try {
+      final catsJson = await ApiService.getCategoriasComunidade();
+      _categoriasComunidade
+        ..clear()
+        ..addAll(
+          catsJson
+              .map((e) => CategoriaComunidadeModel.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList(),
+        );
+      if (_categoriasComunidade.isEmpty) {
+        _categoriasComunidade.addAll(CategoriaComunidadeModel.padroesIniciais);
+      }
+
+      final jsonList = await ApiService.getPostagensComunidade();
+      _postagensComunidade
+        ..clear()
+        ..addAll(
+          jsonList
+              .map((e) => PostagemComunidadeModel.fromJson(Map<String, dynamic>.from(e as Map)))
+              .toList(),
+        );
+    } catch (_) {}
+  }
+
+  List<CategoriaComunidadeModel> getCategoriasComunidade() {
+    if (_categoriasComunidade.isEmpty) {
+      return CategoriaComunidadeModel.padroesIniciais;
+    }
+    return List.unmodifiable(_categoriasComunidade);
+  }
+
+  Future<CategoriaComunidadeModel> adicionarCategoriaComunidade({
+    required String nome,
+    String iconeKey = 'receita',
+  }) async {
+    final slug = CategoriaComunidadeModel.gerarSlug(nome);
+    final saved = await ApiService.salvarCategoriaComunidade({
+      'slug': slug,
+      'nome': nome.trim(),
+      'icone': iconeKey,
+    });
+    final novaCat = CategoriaComunidadeModel.fromJson(saved);
+    final idx = _categoriasComunidade.indexWhere((c) => c.slug == novaCat.slug);
+    if (idx >= 0) {
+      _categoriasComunidade[idx] = novaCat;
+    } else {
+      _categoriasComunidade.add(novaCat);
+    }
+    return novaCat;
+  }
+
+  Future<CategoriaComunidadeModel> renomearCategoriaComunidade(
+    CategoriaComunidadeModel categoriaAtual, {
+    required String novoNome,
+    String? novoIconeKey,
+  }) async {
+    final novoSlug = CategoriaComunidadeModel.gerarSlug(novoNome);
+    final saved = await ApiService.salvarCategoriaComunidade(
+      {
+        'id': categoriaAtual.id,
+        'slug': novoSlug,
+        'nome': novoNome.trim(),
+        'icone': novoIconeKey ?? categoriaAtual.iconeKey,
+      },
+      id: categoriaAtual.id,
+      slugAntigo: categoriaAtual.slug,
+    );
+    final catAtualizada = CategoriaComunidadeModel.fromJson(saved);
+    final idx = _categoriasComunidade.indexWhere(
+      (c) => c.id == categoriaAtual.id || c.slug == categoriaAtual.slug,
+    );
+    if (idx >= 0) {
+      _categoriasComunidade[idx] = catAtualizada;
+    }
+    for (int i = 0; i < _postagensComunidade.length; i++) {
+      if (_postagensComunidade[i].categoriaSlug == categoriaAtual.slug) {
+        _postagensComunidade[i] = _postagensComunidade[i].copyWith(
+          categoriaSlug: catAtualizada.slug,
+          categoriaNomeCustom: catAtualizada.nome,
+        );
+      }
+    }
+    return catAtualizada;
+  }
+
+  Future<void> excluirCategoriaComunidade(CategoriaComunidadeModel categoria) async {
+    _categoriasComunidade.removeWhere(
+      (c) => c.id == categoria.id || c.slug == categoria.slug,
+    );
+    await ApiService.excluirCategoriaComunidade(categoria.id, categoria.slug);
+
+    final destino = _categoriasComunidade.isNotEmpty
+        ? _categoriasComunidade.first
+        : CategoriaComunidadeModel.padroesIniciais.first;
+    for (int i = 0; i < _postagensComunidade.length; i++) {
+      if (_postagensComunidade[i].categoriaSlug == categoria.slug) {
+        _postagensComunidade[i] = _postagensComunidade[i].copyWith(
+          categoriaSlug: destino.slug,
+          categoriaNomeCustom: destino.nome,
+        );
+      }
+    }
+  }
+
+  List<PostagemComunidadeModel> getPostagensComunidade() {
+    return List.unmodifiable(_postagensComunidade);
+  }
+
+  Future<PostagemComunidadeModel> salvarPostagemComunidade(
+    PostagemComunidadeModel postagem, {
+    bool isEdicao = false,
+  }) async {
+    final data = postagem.toJson();
+    final savedMap = await ApiService.salvarPostagemComunidade(
+      data,
+      id: isEdicao ? postagem.id : null,
+    );
+    final novaPostagem = savedMap != null
+        ? PostagemComunidadeModel.fromJson(savedMap)
+        : postagem;
+
+    final idx = _postagensComunidade.indexWhere((p) => p.id == novaPostagem.id);
+    if (idx >= 0) {
+      _postagensComunidade[idx] = novaPostagem;
+    } else {
+      _postagensComunidade.insert(0, novaPostagem);
+    }
+    return novaPostagem;
+  }
+
+  Future<void> excluirPostagemComunidade(String id) async {
+    _postagensComunidade.removeWhere((p) => p.id == id);
+    await ApiService.excluirPostagemComunidade(id);
+  }
+
+  Future<void> alternarCurtidaPostagemComunidade(String id) async {
+    final idx = _postagensComunidade.indexWhere((p) => p.id == id);
+    if (idx >= 0) {
+      final post = _postagensComunidade[idx];
+      final novoCurtido = !post.curtidoPorMim;
+      final novoTotal = post.totalCurtidas + (novoCurtido ? 1 : -1);
+      _postagensComunidade[idx] = post.copyWith(
+        curtidoPorMim: novoCurtido,
+        totalCurtidas: novoTotal < 0 ? 0 : novoTotal,
+      );
+    }
+    final result = await ApiService.alternarCurtidaPostagemComunidade(id);
+    if (result != null && idx >= 0 && idx < _postagensComunidade.length) {
+      final post = _postagensComunidade[idx];
+      _postagensComunidade[idx] = post.copyWith(
+        curtidoPorMim: result['curtido_por_mim'] == true,
+        totalCurtidas:
+            int.tryParse((result['total_curtidas'] ?? 0).toString()) ?? post.totalCurtidas,
+      );
+    }
+  }
+
+  Future<void> alternarSalvarPostagemComunidade(String id) async {
+    final idx = _postagensComunidade.indexWhere((p) => p.id == id);
+    if (idx >= 0) {
+      final post = _postagensComunidade[idx];
+      _postagensComunidade[idx] = post.copyWith(salvoPorMim: !post.salvoPorMim);
+    }
+    final result = await ApiService.alternarSalvarPostagemComunidade(id);
+    if (result != null && idx >= 0 && idx < _postagensComunidade.length) {
+      final post = _postagensComunidade[idx];
+      _postagensComunidade[idx] = post.copyWith(
+        salvoPorMim: result['salvo_por_mim'] == true,
+      );
+    }
   }
 
   Future<void> carregarRegistrosDiarios(String data) async {

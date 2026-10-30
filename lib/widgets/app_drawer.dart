@@ -3,6 +3,7 @@ import '../pages/login_page.dart';
 import '../pages/pacientes_page.dart';
 import '../pages/refeicoes_page.dart';
 import '../pages/historico_page.dart';
+import '../pages/comunidade_page.dart';
 import '../pages/configuracoes_page.dart';
 import '../services/api_service.dart';
 import '../services/dados_service.dart';
@@ -138,6 +139,22 @@ class AppDrawer extends StatelessWidget {
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(builder: (context) => const HistoricoPage()),
+                        );
+                      }
+                    },
+                  ),
+
+                  _drawerItem(
+                    context,
+                    icone: Icons.auto_awesome_mosaic_outlined,
+                    texto: 'Comunidade',
+                    ativo: paginaAtual == 'comunidade',
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (paginaAtual != 'comunidade') {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ComunidadePage()),
                         );
                       }
                     },
