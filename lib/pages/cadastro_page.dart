@@ -64,7 +64,10 @@ class _CadastroPageState extends State<CadastroPage> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Email não cadastrado ou dados incorretos.'),
+          content: Text(
+            'E-mail não autorizado ou não encontrado no pré-cadastro da nutricionista. Solicite seu cadastro à Dra. Juliana.',
+          ),
+          duration: Duration(seconds: 4),
           backgroundColor: AppColors.vermelho,
         ),
       );

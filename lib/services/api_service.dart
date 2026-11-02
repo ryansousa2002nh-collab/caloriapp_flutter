@@ -356,28 +356,39 @@ class ApiService {
   }
 
   static Future<bool> validarCadastro(String nome, String email, String dataNascimento) async {
+    final cleanEmail = email.trim().toLowerCase();
+    final cleanData = dataNascimento.trim();
+
     try {
       final response = await http
           .post(
             Uri.parse('${baseUrl}cadastro/validar/'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
-              'nome': nome,
-              'email': email,
-              'data_nascimento': dataNascimento,
+              'nome': nome.trim(),
+              'email': cleanEmail,
+              'data_nascimento': cleanData,
             }),
           )
           .timeout(_timeout);
+
+      // Se o backend respondeu com sucesso, está autorizado
       if (response.statusCode == 200) return true;
+
+      // Se o backend explicitamente rejeitou (404 = e-mail não pré-cadastrado ou 400 = dados inválidos)
+      if (response.statusCode == 404 || response.statusCode == 400) {
+        return false;
+      }
     } catch (_) {}
 
+    // Fallback estrito no armazenamento local (apenas se estiver offline sem conexão com o servidor)
     final prefs = await SharedPreferences.getInstance();
     final preCadastros = await _lerPreCadastrosLocais(prefs);
     final existe = preCadastros.any(
-      (c) => (c['email']?.toString().toLowerCase() ?? '') == email.trim().toLowerCase(),
+      (c) => (c['email']?.toString().toLowerCase().trim() ?? '') == cleanEmail,
     );
-    // Permite validar se foi pré-cadastrado ou em modo de demonstração
-    return existe || email.contains('@');
+    // Somente valida se o e-mail estiver explicitamente salvo no pré-cadastro local da nutri
+    return existe;
   }
 
   static Future<bool> finalizarCadastro(
@@ -387,41 +398,55 @@ class ApiService {
     String username,
     String senha,
   ) async {
+    final cleanEmail = email.trim().toLowerCase();
+    final cleanUser = username.trim().toLowerCase();
+    final cleanData = dataNascimento.trim();
+
     try {
       final response = await http
           .post(
             Uri.parse('${baseUrl}cadastro/finalizar/'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
-              'nome': nome,
-              'email': email,
-              'data_nascimento': dataNascimento,
-              'username': username,
+              'nome': nome.trim(),
+              'email': cleanEmail,
+              'data_nascimento': cleanData,
+              'username': cleanUser,
               'senha': senha,
             }),
           )
           .timeout(_timeout);
+
       if (response.statusCode == 201) return true;
+      if (response.statusCode == 400 || response.statusCode == 404) return false;
     } catch (_) {}
 
     final prefs = await SharedPreferences.getInstance();
+    final preCadastros = await _lerPreCadastrosLocais(prefs);
+    final preIndex = preCadastros.indexWhere(
+      (c) => (c['email']?.toString().toLowerCase().trim() ?? '') == cleanEmail,
+    );
+
+    // Se nem localmente o email está pré-cadastrado, não permite finalizar!
+    if (preIndex < 0) return false;
+
     await _garantirDadosLocaisIniciais(prefs);
     final pacientes = await _lerPacientesLocais(prefs);
     final index = pacientes.indexWhere(
-      (p) => (p['email']?.toString().toLowerCase() ?? '') == email.trim().toLowerCase(),
+      (p) => (p['email']?.toString().toLowerCase().trim() ?? '') == cleanEmail,
     );
 
     if (index >= 0) {
       final p = Map<String, dynamic>.from(pacientes[index] as Map);
-      p['username'] = username.trim().toLowerCase();
+      p['username'] = cleanUser;
       p['nome'] = nome.trim();
       pacientes[index] = p;
     } else {
       pacientes.add({
         'id': DateTime.now().millisecondsSinceEpoch % 100000,
         'nome': nome.trim(),
-        'username': username.trim().toLowerCase(),
-        'email': email.trim(),
+        'username': cleanUser,
+        'email': cleanEmail,
         'status_financeiro': 'pago',
         'valor_mensalidade': 400.0,
         'meta_calorica': 2000.0,
@@ -430,6 +455,10 @@ class ApiService {
       });
     }
     await _salvarPacientesLocais(prefs, pacientes);
+
+    // Remove do pré-cadastro pois agora o cadastro foi concluído
+    preCadastros.removeAt(preIndex);
+    await prefs.setString(_localPreCadastrosKey, jsonEncode(preCadastros));
     return true;
   }
 
