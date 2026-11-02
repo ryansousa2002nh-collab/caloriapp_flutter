@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'pages/login_page.dart';
+import 'services/lembretes_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_controller.dart';
 import 'widgets/botanical_background.dart';
@@ -15,6 +16,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(_whiteStatusBarStyle);
   await ThemeController.instance.init();
+  await LembretesService.inicializar();
   runApp(const MyApp());
 }
 

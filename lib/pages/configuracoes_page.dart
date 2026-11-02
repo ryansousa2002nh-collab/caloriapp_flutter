@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
+import '../services/biometria_service.dart';
 import '../services/dados_service.dart';
+import '../services/lembretes_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/apple_theme_toggle.dart';
+import 'chat_nutri_page.dart';
 import 'login_page.dart';
 
 class ConfiguracoesPage extends StatefulWidget {
@@ -45,17 +48,20 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
 
   Future<void> _alternarNotificacaoDieta(bool valor) async {
     setState(() => _notificacoesDieta = valor);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('config_notif_dieta', valor);
+    await LembretesService.setLembretesAtivos(valor);
+    if (valor) {
+      await LembretesService.agendarLembretesDieta(_dadosService.getPacienteAtivo().planoAlimentar);
+    }
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           valor
-              ? 'Lembretes de refeições da dieta ativados!'
+              ? 'Lembretes ativados! O app notificará você nos horários fixados pela Nutri.'
               : 'Lembretes de refeições desativados.',
         ),
-        duration: const Duration(seconds: 2),
+        backgroundColor: valor ? AppColors.verde : Colors.grey,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -199,8 +205,9 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
                         );
                       }
 
-                      if (!mounted) return;
+                      if (!modalContext.mounted) return;
                       Navigator.pop(modalContext);
+                      if (!mounted) return;
                       setState(() {});
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -283,10 +290,52 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
                       value: _biometriaAtiva,
                       activeTrackColor: AppColors.verde,
                       onChanged: (val) async {
+                        if (val) {
+                          final podeUsar = await BiometriaService.podeUsarBiometria();
+                          if (!podeUsar) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Biometria não configurada ou não suportada neste dispositivo.'),
+                                backgroundColor: AppColors.vermelho,
+                              ),
+                            );
+                            return;
+                          }
+
+                          final autenticou = await BiometriaService.autenticar(
+                            motivo: 'Confirme sua biometria para ativar o acesso rápido',
+                          );
+
+                          if (!autenticou) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Autenticação biométrica cancelada ou não reconhecida.'),
+                                backgroundColor: AppColors.vermelho,
+                              ),
+                            );
+                            return;
+                          }
+                        }
+
+                        if (!modalContext.mounted) return;
                         setModalState(() => _biometriaAtiva = val);
+                        if (!mounted) return;
                         setState(() => _biometriaAtiva = val);
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setBool('config_biometria', val);
+                        await BiometriaService.setBiometriaAtiva(val);
+
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              val
+                                  ? 'Acesso biométrico ativado com sucesso!'
+                                  : 'Acesso biométrico desativado.',
+                            ),
+                            backgroundColor: val ? AppColors.verde : Colors.grey,
+                          ),
+                        );
                       },
                     ),
                     const Divider(height: 24),
@@ -360,8 +409,9 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
                           final prefs = await SharedPreferences.getInstance();
                           await prefs.setString('config_senha_salva', novaSenhaCtrl.text);
 
-                          if (!mounted) return;
+                          if (!modalContext.mounted) return;
                           Navigator.pop(modalContext);
+                          if (!mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
                               content: Text('Senha alterada com sucesso!'),
@@ -458,15 +508,18 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
                   child: ElevatedButton.icon(
                     onPressed: () {
                       Navigator.pop(modalContext);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Solicitação de suporte enviada para a equipe Nutri+!'),
-                          backgroundColor: AppColors.verde,
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatNutriPage(
+                            paciente: _dadosService.getPacienteAtivo(),
+                            isNutri: _dadosService.isNutri,
+                          ),
                         ),
                       );
                     },
-                    icon: const Icon(Icons.headset_mic_outlined),
-                    label: const Text('Solicitar Atendimento no App'),
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    label: const Text('Falar com a Nutri no Chat'),
                   ),
                 ),
               ],

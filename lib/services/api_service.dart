@@ -1,23 +1,36 @@
 import 'dart:convert';
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiService {
-  static const Duration _timeout = Duration(seconds: 2);
-  static const String _localPacientesKey = 'local_backend_pacientes_v1';
-  static const String _localPreCadastrosKey = 'local_backend_precadastros_v1';
-  static const String _localComunidadeKey = 'local_backend_comunidade_v1';
-  static const String _localCategoriasComunidadeKey = 'local_backend_categorias_comunidade_v1';
+  static const String renderBaseUrl = 'https://projeto-nutri-voa4.onrender.com/api/';
+  static const Duration _timeout = Duration(seconds: 25);
+  static const Duration _loginTimeout = Duration(seconds: 35);
+  static const String _localPacientesKey = 'local_backend_pacientes_clean_v1';
+  static const String _localPreCadastrosKey = 'local_backend_precadastros_clean_v1';
+  static const String _localComunidadeKey = 'local_backend_comunidade_clean_v1';
+  static const String _localCategoriasComunidadeKey = 'local_backend_categorias_comunidade_clean_v1';
 
-  static String get baseUrl {
-    if (kIsWeb) return 'http://127.0.0.1:8001/api/';
-    if (Platform.isAndroid) return 'http://10.0.2.2:8001/api/';
-    return 'http://127.0.0.1:8001/api/';
+  static String get baseUrl => renderBaseUrl;
+
+  /// Dispara um ping assíncrono para o endpoint de status da API
+  /// para acordar o container do Render em segundo plano (evita a espera por cold start).
+  static void aquecerServidorSilencioso() {
+    http
+        .get(Uri.parse('${baseUrl}status/'))
+        .timeout(const Duration(seconds: 40))
+        .then((_) {})
+        .catchError((_) {});
   }
 
-  /// Faz login via API ou utiliza o backend local integrado caso o servidor 8001 esteja offline.
+  /// Retorna imediatamente os pacientes salvos no cache local (sem latência de rede).
+  static Future<List<dynamic>> getPacientesLocaisCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await _garantirDadosLocaisIniciais(prefs);
+    return _lerPacientesLocais(prefs);
+  }
+
+  /// Faz login via API do Render ou utiliza o backend local integrado caso esteja sem internet.
   /// - Para entrar como Nutricionista: usuário `nutri` ou `juliana` (senha `123`)
   /// - Para entrar como Paciente: usuário `paciente.teste` (senha `123`)
   static Future<bool> login(String username, String password) async {
@@ -26,6 +39,7 @@ class ApiService {
 
     final prefs = await SharedPreferences.getInstance();
     await _garantirDadosLocaisIniciais(prefs);
+    await prefs.setString('logged_password', password);
 
     try {
       final response = await http
@@ -33,7 +47,7 @@ class ApiService {
             Uri.parse('${baseUrl}login/'),
             body: {'username': username.trim(), 'password': password},
           )
-          .timeout(_timeout);
+          .timeout(_loginTimeout);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -43,12 +57,13 @@ class ApiService {
         return true;
       }
     } catch (_) {
-      // Servidor HTTP 8001 offline: utiliza autenticação local integrada
+      // Servidor offline ou sem internet: utiliza autenticação local integrada
     }
 
     // Autenticação no backend local integrado
-    final isNutriLogin = cleanUser == 'nutri' ||
+    final isNutriLogin = cleanUser == 'juliana.nutri' ||
         cleanUser == 'juliana' ||
+        cleanUser == 'nutri' ||
         cleanUser == 'dra.juliana' ||
         cleanUser == 'admin' ||
         cleanUser.contains('nutri') ||
@@ -81,6 +96,37 @@ class ApiService {
     await prefs.remove('token');
     await prefs.remove('tipo_usuario');
     await prefs.remove('logged_username');
+    await prefs.remove('logged_password');
+  }
+
+  /// Caso a sessão tenha iniciado offline (`local_token_...`), tenta renovar o token
+  /// automaticamente no servidor do Render assim que houver conexão.
+  static Future<String?> _obterTokenAtivo(SharedPreferences prefs) async {
+    final currentToken = prefs.getString('token');
+    if (currentToken != null && !currentToken.startsWith('local_token_')) {
+      return currentToken;
+    }
+    final user = prefs.getString('logged_username');
+    final pass = prefs.getString('logged_password') ?? '123';
+    if (user != null && user.isNotEmpty) {
+      try {
+        final response = await http
+            .post(
+              Uri.parse('${baseUrl}login/'),
+              body: {'username': user, 'password': pass},
+            )
+            .timeout(const Duration(seconds: 12));
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final novoToken = data['token']?.toString();
+          if (novoToken != null && novoToken.isNotEmpty) {
+            await prefs.setString('token', novoToken);
+            return novoToken;
+          }
+        }
+      } catch (_) {}
+    }
+    return currentToken;
   }
 
   static Future<String?> getToken() async {
@@ -96,7 +142,7 @@ class ApiService {
   /// Busca o tipo do usuário logado ('NUTRI' ou 'CLIENTE')
   static Future<String?> getTipoUsuario() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
 
     if (token != null && !token.startsWith('local_token_')) {
       try {
@@ -124,7 +170,7 @@ class ApiService {
   static Future<List<dynamic>> getPacientes() async {
     final prefs = await SharedPreferences.getInstance();
     await _garantirDadosLocaisIniciais(prefs);
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
 
     if (token != null && !token.startsWith('local_token_')) {
       try {
@@ -147,7 +193,7 @@ class ApiService {
 
   static Future<bool> atualizarPaciente(int id, Map<String, dynamic> data) async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
 
     if (token != null && !token.startsWith('local_token_')) {
       try {
@@ -178,7 +224,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> salvarRefeicao(Map<String, dynamic> data, {String? id}) async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
     final headers = {'Authorization': 'Token $token', 'Content-Type': 'application/json'};
 
     if (token != null && !token.startsWith('local_token_')) {
@@ -235,7 +281,7 @@ class ApiService {
 
   static Future<bool> excluirRefeicao(String id) async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
 
     if (token != null && !token.startsWith('local_token_')) {
       try {
@@ -263,7 +309,7 @@ class ApiService {
 
   static Future<bool> preCadastrarPaciente(String nome, String email, String dataNascimento) async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
 
     if (token != null && !token.startsWith('local_token_')) {
       try {
@@ -389,7 +435,7 @@ class ApiService {
 
   static Future<List<dynamic>> getRegistrosDiarios(String dataStr, {int? pacienteId}) async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
 
     if (token != null && !token.startsWith('local_token_')) {
       try {
@@ -422,7 +468,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> salvarRegistroDiario(Map<String, dynamic> data, {String? id}) async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
 
     if (token != null && !token.startsWith('local_token_')) {
       try {
@@ -481,7 +527,7 @@ class ApiService {
   static Future<List<dynamic>> getCategoriasComunidade() async {
     final prefs = await SharedPreferences.getInstance();
     await _garantirCategoriasComunidadeIniciais(prefs);
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
 
     if (token != null && !token.startsWith('local_token_')) {
       try {
@@ -511,7 +557,7 @@ class ApiService {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await _garantirCategoriasComunidadeIniciais(prefs);
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
     final headers = {'Authorization': 'Token $token', 'Content-Type': 'application/json'};
 
     if (token != null && !token.startsWith('local_token_')) {
@@ -551,7 +597,7 @@ class ApiService {
   static Future<bool> excluirCategoriaComunidade(String id, String slug) async {
     final prefs = await SharedPreferences.getInstance();
     await _garantirCategoriasComunidadeIniciais(prefs);
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
 
     if (token != null && !token.startsWith('local_token_') && !id.startsWith('cat_')) {
       try {
@@ -641,7 +687,7 @@ class ApiService {
   static Future<List<dynamic>> getPostagensComunidade() async {
     final prefs = await SharedPreferences.getInstance();
     await _garantirPostagensComunidadeIniciais(prefs);
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
 
     if (token != null && !token.startsWith('local_token_')) {
       try {
@@ -668,7 +714,7 @@ class ApiService {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await _garantirPostagensComunidadeIniciais(prefs);
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
     final headers = {'Authorization': 'Token $token', 'Content-Type': 'application/json'};
 
     if (token != null && !token.startsWith('local_token_')) {
@@ -725,7 +771,7 @@ class ApiService {
 
   static Future<bool> excluirPostagemComunidade(String id) async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
 
     if (token != null && !token.startsWith('local_token_') && !id.startsWith('post_')) {
       try {
@@ -752,7 +798,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> alternarCurtidaPostagemComunidade(String id) async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
 
     if (token != null && !token.startsWith('local_token_') && !id.startsWith('post_')) {
       try {
@@ -799,7 +845,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>?> alternarSalvarPostagemComunidade(String id) async {
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final token = await _obterTokenAtivo(prefs);
 
     if (token != null && !token.startsWith('local_token_') && !id.startsWith('post_')) {
       try {
@@ -873,79 +919,7 @@ class ApiService {
 
   static Future<void> _garantirPostagensComunidadeIniciais(SharedPreferences prefs) async {
     if (prefs.containsKey(_localComunidadeKey)) return;
-
-    final agora = DateTime.now();
-    final postagensIniciais = [
-      {
-        'id': 'post_1',
-        'titulo': 'Bolo de laranja funcional com farelo de aveia',
-        'categoria': 'receita',
-        'texto':
-            'Sabe aquele cheirinho de bolo saindo do forno no fim da tarde? Essa versão de bolo de laranja leva a fruta inteira (sem as sementes e sem a parte branca), farelo de aveia e ovos caipiras — sem farinha branca e sem açúcar refinado!\n\nIngredientes principais:\n• 1 laranja pera média (cortada em 4, sem sementes e sem o miolo branco)\n• 3 ovos inteiros\n• 1/2 xícara de óleo de coco ou azeite suave\n• 1/2 xícara de uvas-passas brancas ou tâmaras (para adoçar naturalmente)\n• 1 e 1/2 xícara de farelo de aveia\n• 1 colher (sopa) de fermento em pó\n\nModo de preparo:\nBata no liquidificador a laranja, os ovos, o azeite e as passas até ficar homogêneo. Misture o farelo de aveia e o fermento delicadamente. Asse em forno pré-aquecido a 180 °C por 35 minutos. Fica super úmido e rico em fibras!',
-        'foto_url':
-            'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=900&q=80',
-        'link_externo': 'https://www.instagram.com/p/C8boloDeLaranjaNutri/',
-        'tempo_preparo': '35 min',
-        'calorias_porcao': 165,
-        'autor_nome': 'Dra. Juliana Braz',
-        'data_criacao': agora.subtract(const Duration(hours: 4)).toIso8601String(),
-        'total_curtidas': 28,
-        'curtido_por_mim': true,
-        'salvo_por_mim': true,
-      },
-      {
-        'id': 'post_2',
-        'titulo': 'Prato colorido de almoço: grelhado cítrico + raízes assadas',
-        'categoria': 'prato',
-        'texto':
-            'Montar um prato equilibrado na correria da semana não precisa ser complicado! A regra visual de ouro é preencher 50% do prato com vegetais crus e cozidos variados, 25% com proteína magra (aqui usei filé de tilápia grelhado com limão siciliano e ervas) e 25% com carboidratos ricos em fibras como abóbora cabotiá e grão-de-bico.\n\nPrepare os legumes assados de uma só vez no domingo e tenha refeições práticas por 4 dias seguidos!',
-        'foto_url':
-            'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=80',
-        'link_externo': 'https://www.instagram.com/p/C8pratoSaudavelNutri/',
-        'tempo_preparo': '20 min',
-        'calorias_porcao': 410,
-        'autor_nome': 'Dra. Juliana Braz',
-        'data_criacao': agora.subtract(const Duration(days: 1, hours: 3)).toIso8601String(),
-        'total_curtidas': 19,
-        'curtido_por_mim': false,
-        'salvo_por_mim': false,
-      },
-      {
-        'id': 'post_3',
-        'titulo': '3 estratégias simples para controlar a vontade de doce após o almoço',
-        'categoria': 'dica',
-        'texto':
-            'Sentir vontade de comer um docinho logo depois do almoço é muito comum, mas quando ela é intensa todos os dias, vale observar três pontos:\n\n1. Aporte de proteínas e fibras no prato principal: refeições pobres em fibras geram picos rápidos de glicose.\n2. Hidratação ao longo da manhã: muitas vezes confundimos sede leve com fome por açúcar.\n3. Sobremesa estratégica: 1 quadradinho (15g) de chocolate 70% cacau degustado devagar ou frutas cítricas ajudam a limpar o paladar sem sair da meta calórica.',
-        'foto_url':
-            'https://images.unsplash.com/photo-1490474418585-ba9bad8fd0ea?auto=format&fit=crop&w=900&q=80',
-        'link_externo': 'https://www.instagram.com/p/C8dicasDocesNutri/',
-        'tempo_preparo': 'Leitura 2 min',
-        'calorias_porcao': null,
-        'autor_nome': 'Dra. Juliana Braz',
-        'data_criacao': agora.subtract(const Duration(days: 3)).toIso8601String(),
-        'total_curtidas': 34,
-        'curtido_por_mim': false,
-        'salvo_por_mim': true,
-      },
-      {
-        'id': 'post_4',
-        'titulo': 'Constância vence a perfeição: como lidar com finais de semana',
-        'categoria': 'texto',
-        'texto':
-            'Nutrição de verdade não é sobre nunca comer uma fatia de pizza ou um bolo de aniversário com quem você ama. O resultado duradouro vem do que você faz em 85% a 90% das suas refeições na rotina.\n\nSe uma refeição saiu do planejado no sábado à noite, o próximo passo não é pular o café da manhã de domingo nem fazer jejum punitivo: é simplesmente beber água, dormir bem e retomar sua próxima refeição habitual com tranquilidade.',
-        'foto_url': null,
-        'link_externo': 'https://www.instagram.com/p/C8constanciaNutri/',
-        'tempo_preparo': 'Leitura 3 min',
-        'calorias_porcao': null,
-        'autor_nome': 'Dra. Juliana Braz',
-        'data_criacao': agora.subtract(const Duration(days: 5)).toIso8601String(),
-        'total_curtidas': 42,
-        'curtido_por_mim': true,
-        'salvo_por_mim': false,
-      },
-    ];
-
-    await _salvarPostagensComunidadeLocais(prefs, postagensIniciais);
+    await _salvarPostagensComunidadeLocais(prefs, []);
   }
 
   // --- Helpers do Banco Local Integrado ---
@@ -976,138 +950,6 @@ class ApiService {
 
   static Future<void> _garantirDadosLocaisIniciais(SharedPreferences prefs) async {
     if (prefs.containsKey(_localPacientesKey)) return;
-
-    final hoje = DateTime.now().toIso8601String().split('T').first;
-    final pacientesIniciais = [
-      {
-        'id': 1,
-        'nome': 'Paciente Teste',
-        'username': 'paciente.teste',
-        'email': 'paciente@teste.com',
-        'status_financeiro': 'pago',
-        'valor_mensalidade': 400.0,
-        'meta_calorica': 2000.0,
-        'metas': {
-          'peso_atual': 76.5,
-          'meta_peso': 70.0,
-          'cintura_antes': 90.0,
-          'cintura_depois': 84.0,
-          'quadril_antes': 106.0,
-          'quadril_depois': 101.0,
-          'coxa_antes': 61.0,
-          'coxa_depois': 58.0,
-          'braco_antes': 32.0,
-          'braco_depois': 30.5,
-        },
-        'plano_alimentar': [
-          {
-            'id': '101',
-            'tipo': 'Café da manhã',
-            'horario_sugerido': '07:30',
-            'observacoes': 'Pode substituir o pão integral por goma de tapioca.',
-            'itens': [
-              {'alimento_nome': 'Pão de forma integral', 'quantidade_gramas': 50},
-              {'alimento_nome': 'Ovo cozido', 'quantidade_gramas': 100},
-              {'alimento_nome': 'Mamão papaia', 'quantidade_gramas': 150},
-            ],
-          },
-          {
-            'id': '102',
-            'tipo': 'Almoço',
-            'horario_sugerido': '12:30',
-            'observacoes': 'Temperar a salada com 1 fio de azeite de oliva.',
-            'itens': [
-              {'alimento_nome': 'Arroz integral cozido', 'quantidade_gramas': 120},
-              {'alimento_nome': 'Feijão carioca cozido', 'quantidade_gramas': 100},
-              {'alimento_nome': 'Frango grelhado (peito)', 'quantidade_gramas': 150},
-            ],
-          },
-          {
-            'id': '103',
-            'tipo': 'Lanche da tarde',
-            'horario_sugerido': '16:00',
-            'observacoes': 'Ótima opção pré-treino.',
-            'itens': [
-              {'alimento_nome': 'Iogurte natural desnatado', 'quantidade_gramas': 160},
-              {'alimento_nome': 'Aveia em flocos', 'quantidade_gramas': 30},
-              {'alimento_nome': 'Banana prata', 'quantidade_gramas': 70},
-            ],
-          },
-          {
-            'id': '104',
-            'tipo': 'Jantar',
-            'horario_sugerido': '20:00',
-            'observacoes': 'Refeição leve para melhor digestão noturna.',
-            'itens': [
-              {'alimento_nome': 'Filé de tilápia grelhado', 'quantidade_gramas': 150},
-              {'alimento_nome': 'Batata doce cozida', 'quantidade_gramas': 120},
-            ],
-          },
-        ],
-        'registros_diarios': [
-          {
-            'id': 'reg_1',
-            'data': hoje,
-            'itens': [
-              {
-                'refeicao_nome': 'Café da manhã',
-                'refeicao_planejada': 101,
-                'alimento_nome': 'Pão de forma integral',
-                'quantidade_gramas': 50,
-                'calorias_manual': 124,
-              },
-              {
-                'refeicao_nome': 'Café da manhã',
-                'refeicao_planejada': 101,
-                'alimento_nome': 'Ovo cozido',
-                'quantidade_gramas': 100,
-                'calorias_manual': 143,
-              },
-              {
-                'refeicao_nome': 'Almoço',
-                'refeicao_planejada': 102,
-                'alimento_nome': 'Frango grelhado (peito)',
-                'quantidade_gramas': 150,
-                'calorias_manual': 248,
-              },
-            ],
-          },
-        ],
-      },
-      {
-        'id': 2,
-        'nome': 'Maria Clara Silva',
-        'username': 'maria.clara',
-        'email': 'mariaclara@email.com',
-        'status_financeiro': 'pago',
-        'valor_mensalidade': 400.0,
-        'meta_calorica': 1800.0,
-        'plano_alimentar': [
-          {
-            'id': '201',
-            'tipo': 'Café da manhã',
-            'horario_sugerido': '08:00',
-            'observacoes': 'Acompanha café sem açúcar.',
-            'itens': [
-              {'alimento_nome': 'Goma de tapioca hidratada', 'quantidade_gramas': 60},
-              {'alimento_nome': 'Queijo minas frescal', 'quantidade_gramas': 40},
-            ],
-          },
-          {
-            'id': '202',
-            'tipo': 'Almoço',
-            'horario_sugerido': '12:30',
-            'observacoes': null,
-            'itens': [
-              {'alimento_nome': 'Arroz branco cozido', 'quantidade_gramas': 100},
-              {'alimento_nome': 'Carne bovina (Patinho)', 'quantidade_gramas': 130},
-            ],
-          },
-        ],
-        'registros_diarios': [],
-      },
-    ];
-
-    await _salvarPacientesLocais(prefs, pacientesIniciais);
+    await _salvarPacientesLocais(prefs, []);
   }
 }

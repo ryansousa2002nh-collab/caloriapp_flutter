@@ -452,6 +452,14 @@ class AppColors {
   static const vermelhoFundoEscuro = Color(0xFF381010);
   static const vermelhoBordaEscuro = Color(0xFF7F1D1D);
 
+  // Tom rosa das frutinhas do tema botânico
+  static const rosaFrutinha = Color(0xFFDF9E99);
+  static const rosaFrutinhaClaro = Color(0xFFF1C0BC);
+  static const rosaFrutinhaEscuro = Color(0xFFCE8882);
+  static const rosaFrutinhaFundoEscuro = Color(0xFFE5A8A3);
+  static const rosaVibrante = Color(0xFFF43F5E); // Rosa chamativo vibrante
+  static const rosaVibranteEscuro = Color(0xFFFB7185);
+
   static bool isDark(BuildContext context) => Theme.of(context).brightness == Brightness.dark;
   static Color getFundoPagina(BuildContext context) => isDark(context) ? fundoPaginaEscuro : fundoPagina;
   static Color getCard(BuildContext context) =>

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/paciente_model.dart';
+import '../services/chat_service.dart';
 import '../services/dados_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/apple_theme_toggle.dart';
+import 'chat_nutri_page.dart';
+import 'conversas_nutri_page.dart';
 import 'criar_dieta_page.dart';
 import '../services/api_service.dart';
 import '../utils/date_formatter.dart';
@@ -27,11 +30,26 @@ class _PacientesPageState extends State<PacientesPage> {
     }).toList();
   }
 
-  Future<void> _recarregarPacientes() async {
-    await _dadosService.carregarDadosDoBackend();
+  @override
+  void initState() {
+    super.initState();
+    _dadosService.addListener(_onDadosModificados);
+  }
+
+  @override
+  void dispose() {
+    _dadosService.removeListener(_onDadosModificados);
+    super.dispose();
+  }
+
+  void _onDadosModificados() {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  Future<void> _recarregarPacientes() async {
+    await _dadosService.sincronizarComBackend();
   }
 
   @override
@@ -47,6 +65,58 @@ class _PacientesPageState extends State<PacientesPage> {
           style: TextStyle(fontWeight: FontWeight.w700),
         ),
         actions: [
+          if (_dadosService.isSincronizando)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.verde),
+                ),
+              ),
+            ),
+          AnimatedBuilder(
+            animation: ChatService(),
+            builder: (context, _) {
+              final totalNaoLidas = ChatService().obterTotalNaoLidasParaNutri();
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    tooltip: 'Mensagens dos Pacientes',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ConversasNutriPage()),
+                      );
+                    },
+                  ),
+                  if (totalNaoLidas > 0)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: AppColors.rosaVibrante,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '$totalNaoLidas',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
           const AppleThemeToggle(size: 28),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -298,7 +368,32 @@ class _PacientesPageState extends State<PacientesPage> {
                 ),
               ),
 
-              const SizedBox(width: 8),
+              AnimatedBuilder(
+                animation: ChatService(),
+                builder: (context, _) {
+                  final naoLidas = ChatService().obterNaoLidasDoPaciente(paciente.id);
+                  return IconButton(
+                    icon: Badge(
+                      isLabelVisible: naoLidas > 0,
+                      label: Text('$naoLidas'),
+                      backgroundColor: AppColors.rosaVibrante,
+                      child: const Icon(Icons.chat_outlined, size: 20, color: AppColors.verde),
+                    ),
+                    tooltip: 'Conversar com ${paciente.nome}',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatNutriPage(
+                            paciente: paciente,
+                            isNutri: true,
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
               Icon(
                 Icons.chevron_right,
                 size: 20,

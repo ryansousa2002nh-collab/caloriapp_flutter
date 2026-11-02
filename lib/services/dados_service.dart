@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+
 import '../models/dieta_model.dart';
 import '../models/metas_model.dart';
 import '../models/paciente_model.dart';
@@ -5,7 +8,7 @@ import '../models/postagem_comunidade_model.dart';
 import '../models/registro_diario_model.dart';
 import 'api_service.dart';
 
-class DadosService {
+class DadosService extends ChangeNotifier {
   // Singleton para manter o estado persistente durante a execução do app
   static final DadosService _instancia = DadosService._interno();
   factory DadosService() => _instancia;
@@ -18,34 +21,73 @@ class DadosService {
   String? _usernameLogado;
   String _nomeNutri = 'Dra. Juliana Braz';
   String _emailNutri = 'juliana.braz@nutri.com';
+  bool _isSincronizando = false;
 
   String get tipoUsuarioLogado => _tipoUsuarioLogado;
   bool get isNutri => _tipoUsuarioLogado == 'NUTRI';
   String get nomeNutri => _nomeNutri;
   String get emailNutri => _emailNutri;
+  bool get isSincronizando => _isSincronizando;
 
   void setTipoUsuarioLogado(String tipo) {
     _tipoUsuarioLogado = tipo;
+    notifyListeners();
   }
 
   void atualizarPerfilNutri({required String nome, required String email}) {
     _nomeNutri = nome;
     _emailNutri = email;
+    notifyListeners();
   }
 
-  Future<void> carregarDadosDoBackend() async {
+  /// 1. Carrega imediatamente o cache local salvo no dispositivo (0s de espera).
+  Future<void> carregarDadosLocaisCache() async {
+    try {
+      _usernameLogado = await ApiService.getLoggedUsername();
+      final jsonList = await ApiService.getPacientesLocaisCache();
+      if (jsonList.isNotEmpty) {
+        _pacientes
+          ..clear()
+          ..addAll(
+            jsonList.map((e) => PacienteModel.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
+          );
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  /// 2. Sincroniza em segundo plano com a API do Render (não bloqueia a navegação da UI).
+  Future<void> sincronizarComBackend() async {
+    _isSincronizando = true;
+    notifyListeners();
+
     try {
       _usernameLogado = await ApiService.getLoggedUsername();
       final jsonList = await ApiService.getPacientes();
-      _pacientes.clear();
-      _pacientes.addAll(
-        jsonList.map((e) => PacienteModel.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
-      );
+      if (jsonList.isNotEmpty) {
+        _pacientes
+          ..clear()
+          ..addAll(
+            jsonList.map((e) => PacienteModel.fromJson(Map<String, dynamic>.from(e as Map))).toList(),
+          );
+      }
 
-      // Carregar registros de hoje para todos os pacientes
+      // Carregar registros de hoje em paralelo para todos os pacientes (evita loop sequencial)
       await carregarRegistrosDiarios(DateTime.now().toIso8601String().split('T').first);
-      await carregarPostagensComunidade();
-    } catch (_) {}
+
+      // Comunidade é sincronizada sem bloquear os dados clínicos
+      unawaited(carregarPostagensComunidade());
+    } catch (_) {
+    } finally {
+      _isSincronizando = false;
+      notifyListeners();
+    }
+  }
+
+  /// Método de compatibilidade que carrega o cache local e inicia a sincronização em nuvem.
+  Future<void> carregarDadosDoBackend() async {
+    await carregarDadosLocaisCache();
+    await sincronizarComBackend();
   }
 
   Future<void> carregarPostagensComunidade() async {
@@ -222,14 +264,14 @@ class DadosService {
   }
 
   Future<void> carregarRegistrosDiarios(String data) async {
-    for (var p in _pacientes) {
+    await Future.wait(_pacientes.map((p) async {
       try {
         final regs = await ApiService.getRegistrosDiarios(data, pacienteId: p.id);
         p.registrosDiarios = regs
             .map((e) => RegistroDiarioModel.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList();
       } catch (_) {}
-    }
+    }));
   }
 
   Future<void> salvarRegistroDiario(int pacienteId, Map<String, dynamic> data) async {
@@ -237,10 +279,7 @@ class DadosService {
     final payload = savedData ?? data;
     final newReg = RegistroDiarioModel.fromJson(payload);
 
-    var paciente = getPacientePorId(pacienteId);
-    if (paciente == null) {
-      paciente = getPacienteAtivo();
-    }
+    final paciente = getPacientePorId(pacienteId) ?? getPacienteAtivo();
 
     final index = paciente.registrosDiarios.indexWhere(
       (r) => (r.id.isNotEmpty && r.id == newReg.id) || (r.data != null && r.data == newReg.data),
@@ -251,6 +290,8 @@ class DadosService {
       paciente.registrosDiarios.insert(0, newReg);
     }
   }
+
+  List<PacienteModel> get pacientes => List.unmodifiable(_pacientes);
 
   List<PacienteModel> getPacientes() {
     return List.unmodifiable(_pacientes);
@@ -266,15 +307,13 @@ class DadosService {
     }
     if (_pacientes.isNotEmpty) return _pacientes.first;
 
-    final padrao = PacienteModel(
-      id: 1,
-      nome: 'Paciente Teste',
-      usuario: 'paciente.teste',
-      email: 'paciente@teste.com',
+    return PacienteModel(
+      id: 0,
+      nome: 'Sem Paciente',
+      usuario: 'paciente',
+      email: '',
       statusFinanceiro: StatusFinanceiro.pago,
     );
-    _pacientes.add(padrao);
-    return padrao;
   }
 
   PacienteModel? getPacientePorId(int id) {

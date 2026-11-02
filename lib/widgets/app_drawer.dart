@@ -5,8 +5,12 @@ import '../pages/refeicoes_page.dart';
 import '../pages/historico_page.dart';
 import '../pages/comunidade_page.dart';
 import '../pages/configuracoes_page.dart';
+import '../pages/chat_nutri_page.dart';
+import '../pages/conversas_nutri_page.dart';
 import '../services/api_service.dart';
+import '../services/chat_service.dart';
 import '../services/dados_service.dart';
+import '../services/lembretes_service.dart';
 import '../theme/app_theme.dart';
 import 'apple_theme_toggle.dart';
 
@@ -162,6 +166,58 @@ class AppDrawer extends StatelessWidget {
 
                   _drawerItem(
                     context,
+                    icone: Icons.chat_bubble_outline,
+                    texto: isNutri ? 'Mensagens dos Pacientes' : 'Falar com a Nutri',
+                    ativo: paginaAtual == 'chat',
+                    corIcone: AppColors.verde,
+                    trailing: AnimatedBuilder(
+                      animation: ChatService(),
+                      builder: (context, _) {
+                        final chatService = ChatService();
+                        final naoLidas = isNutri
+                            ? chatService.obterTotalNaoLidasParaNutri()
+                            : chatService.obterTotalNaoLidasParaPaciente(dadosService.getPacienteAtivo().id);
+                        if (naoLidas <= 0) return const SizedBox.shrink();
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.rosaVibrante,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '$naoLidas',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (isNutri) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const ConversasNutriPage()),
+                        );
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatNutriPage(
+                              paciente: dadosService.getPacienteAtivo(),
+                              isNutri: false,
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+
+                  _drawerItem(
+                    context,
                     icone: Icons.settings_outlined,
                     texto: 'Configurações',
                     ativo: paginaAtual == 'configuracoes',
@@ -171,6 +227,41 @@ class AppDrawer extends StatelessWidget {
                         Navigator.pushReplacement(
                           context,
                           MaterialPageRoute(builder: (context) => const ConfiguracoesPage()),
+                        );
+                      }
+                    },
+                  ),
+
+                  _drawerItem(
+                    context,
+                    icone: Icons.notifications_active_outlined,
+                    texto: 'Lembretes de Refeição',
+                    ativo: false,
+                    corIcone: const Color(0xFF6EE7B7),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      final paciente = dadosService.getPacienteAtivo();
+                      final proxima = LembretesService.calcularProximaRefeicao(paciente.planoAlimentar);
+                      if (proxima != null) {
+                        await LembretesService.dispararNotificacaoImediata(
+                          titulo: '🥗 Lembrete: ${proxima.refeicao.tipo}',
+                          corpo: 'Horário estabelecido pela Nutri: ${proxima.horario} (${proxima.descricaoTempo}). Bom apetite!',
+                        );
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Próxima Refeição: ${proxima.refeicao.tipo} às ${proxima.horario} (${proxima.descricaoTempo}). Notificação de teste enviada!',
+                            ),
+                            backgroundColor: AppColors.verde,
+                            duration: const Duration(seconds: 4),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Nenhuma refeição com horário estabelecido no momento.'),
+                          ),
                         );
                       }
                     },
@@ -219,6 +310,7 @@ class AppDrawer extends StatelessWidget {
     required bool ativo,
     required VoidCallback onTap,
     Color? corIcone,
+    Widget? trailing,
   }) {
     final isDark = AppColors.isDark(context);
     final fundoAtivo = isDark ? AppColors.verdeFundoEscuro : AppColors.verdeClaro;
@@ -248,6 +340,7 @@ class AppDrawer extends StatelessWidget {
             fontSize: 14,
           ),
         ),
+        trailing: trailing,
       ),
     );
   }

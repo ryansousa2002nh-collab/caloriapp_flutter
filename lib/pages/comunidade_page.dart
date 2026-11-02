@@ -2316,7 +2316,7 @@ class _ImagemPratoComunidade extends StatelessWidget {
             height: altura,
             fit: BoxFit.cover,
             alignment: enquadramento.alignment,
-            errorBuilder: (ctx, _, __) => _buildFallbackPrato(context),
+            errorBuilder: (_, _, _) => _buildFallbackPrato(context),
           );
         } else {
           imagemBase = _buildFallbackPrato(context);
@@ -2331,7 +2331,7 @@ class _ImagemPratoComunidade extends StatelessWidget {
         height: altura,
         fit: BoxFit.cover,
         alignment: enquadramento.alignment,
-        errorBuilder: (ctx, _, __) => _buildFallbackPrato(context),
+        errorBuilder: (_, _, _) => _buildFallbackPrato(context),
       );
     } else {
       imagemBase = Image.network(
@@ -2340,7 +2340,7 @@ class _ImagemPratoComunidade extends StatelessWidget {
         height: altura,
         fit: BoxFit.cover,
         alignment: enquadramento.alignment,
-        errorBuilder: (ctx, _, __) => _buildFallbackPrato(context),
+        errorBuilder: (_, _, _) => _buildFallbackPrato(context),
       );
     }
 

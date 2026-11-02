@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+
 import '../models/alimento_model.dart';
 import '../models/dieta_model.dart';
 import '../models/paciente_model.dart';
 import '../services/dados_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/apple_theme_toggle.dart';
+import 'analise_nutricional_page.dart';
 import 'historico_page.dart';
 
 class CriarDietaPage extends StatefulWidget {
   final PacienteModel paciente;
-  final bool isNutri; // Define se é a nutricionista mexendo ou se é modo visualização
+  final bool
+  isNutri; // Define se é a nutricionista mexendo ou se é modo visualização
 
   const CriarDietaPage({
     super.key,
@@ -31,9 +34,19 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
   String _horario = '08:00';
   String _observacoes = '';
   List<ItemRefeicaoModel> _ingredientesForm = [
-    ItemRefeicaoModel(alimentoNome: BancoAlimentos.lista.first.nome, gramas: 100),
+    ItemRefeicaoModel(
+      alimentoNome: BancoAlimentos.lista.first.nome,
+      gramas: 100,
+    ),
   ];
-  int? _indiceEmEdicao; // null = nova refeição, número = editando refeição existente
+  int?
+  _indiceEmEdicao; // null = nova refeição, número = editando refeição existente
+
+  // Cores usadas pros macros ficarem no mesmo padrão da tela de análise
+  static const Color _corProteina = Color(0xFF2563EB);
+  static const Color _corCarboidrato = Color(0xFFD97706);
+  static const Color _corGordura = Color(0xFFE11D48);
+  static const Color _corFibra = Color(0xFF059669);
 
   @override
   void initState() {
@@ -52,10 +65,44 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
   int get _totalFormAtual =>
       _ingredientesForm.fold(0, (soma, i) => soma + i.calorias);
 
+  double get _proteinasFormAtual =>
+      _ingredientesForm.fold(0.0, (soma, i) => soma + i.proteinas);
+
+  double get _carboidratosFormAtual =>
+      _ingredientesForm.fold(0.0, (soma, i) => soma + i.carboidratos);
+
+  double get _gordurasFormAtual =>
+      _ingredientesForm.fold(0.0, (soma, i) => soma + i.gorduras);
+
+  ComposicaoNutricionalDieta get _composicaoPlano => ComposicaoNutricionalDieta(
+    refeicoes: _refeicoes,
+    pesoPacienteKg: widget.paciente.metas.pesoAtual > 0
+        ? widget.paciente.metas.pesoAtual
+        : 70.0,
+    metaCalorica: _metaCalorica,
+  );
+
+  void _abrirAnaliseNutricional({int abaInicial = 0}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AnaliseNutricionalPage(
+          paciente: widget.paciente,
+          refeicoes: _refeicoes,
+          metaCalorica: _metaCalorica,
+          abaInicial: abaInicial,
+        ),
+      ),
+    );
+  }
+
   void _adicionarIngrediente() {
     setState(() {
       _ingredientesForm.add(
-        ItemRefeicaoModel(alimentoNome: BancoAlimentos.lista.first.nome, gramas: 100),
+        ItemRefeicaoModel(
+          alimentoNome: BancoAlimentos.lista.first.nome,
+          gramas: 100,
+        ),
       );
     });
   }
@@ -64,7 +111,12 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
     setState(() {
       _ingredientesForm.removeAt(index);
       if (_ingredientesForm.isEmpty) {
-        _ingredientesForm.add(ItemRefeicaoModel(alimentoNome: BancoAlimentos.lista.first.nome, gramas: 100));
+        _ingredientesForm.add(
+          ItemRefeicaoModel(
+            alimentoNome: BancoAlimentos.lista.first.nome,
+            gramas: 100,
+          ),
+        );
       }
     });
   }
@@ -77,7 +129,10 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
       _horario = '08:00';
       _observacoes = '';
       _ingredientesForm = [
-        ItemRefeicaoModel(alimentoNome: BancoAlimentos.lista.first.nome, gramas: 100),
+        ItemRefeicaoModel(
+          alimentoNome: BancoAlimentos.lista.first.nome,
+          gramas: 100,
+        ),
       ];
       _indiceEmEdicao = null;
     });
@@ -85,7 +140,9 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
 
   Future<void> _salvarRefeicao() async {
     if (!widget.isNutri) {
-      _mostrarAviso('Apenas a nutricionista pode cadastrar ou alterar refeições.');
+      _mostrarAviso(
+        'Apenas a nutricionista pode cadastrar ou alterar refeições.',
+      );
       return;
     }
 
@@ -95,11 +152,18 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
     }
 
     final itensValidos = _ingredientesForm
-        .where((i) => i.alimentoNome != null && i.alimentoNome!.isNotEmpty && i.gramas > 0)
+        .where(
+          (i) =>
+              i.alimentoNome != null &&
+              i.alimentoNome!.isNotEmpty &&
+              i.gramas > 0,
+        )
         .toList();
 
     if (itensValidos.isEmpty) {
-      _mostrarAviso('Adicione pelo menos um alimento com quantidade maior que 0g.');
+      _mostrarAviso(
+        'Adicione pelo menos um alimento com quantidade maior que 0g.',
+      );
       return;
     }
 
@@ -124,9 +188,11 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
     setState(() {
       _refeicoes = List.from(widget.paciente.planoAlimentar);
       _salvando = false;
-      _mostrarAviso(_indiceEmEdicao != null 
-          ? 'Refeição "$_tipo" atualizada com sucesso!' 
-          : 'Refeição "$_tipo" adicionada ao plano!');
+      _mostrarAviso(
+        _indiceEmEdicao != null
+            ? 'Refeição "$_tipo" atualizada com sucesso!'
+            : 'Refeição "$_tipo" adicionada ao plano!',
+      );
     });
 
     _limparFormulario();
@@ -151,14 +217,18 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Excluir Refeição'),
-        content: Text('Deseja realmente remover a refeição "${refeicao.tipo}" do plano?'),
+        content: Text(
+          'Deseja realmente remover a refeição "${refeicao.tipo}" do plano?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancelar'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.vermelho),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.vermelho,
+            ),
             onPressed: () {
               setState(() {
                 _dadosService.excluirRefeicao(widget.paciente.id, refeicao.id);
@@ -190,7 +260,11 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          icon: const Icon(Icons.lock_outline, color: AppColors.verdeEscuro, size: 36),
+          icon: const Icon(
+            Icons.lock_outline,
+            color: AppColors.verdeEscuro,
+            size: 36,
+          ),
           title: const Text('Meta Diária Fixa'),
           content: const Text(
             'Apenas sua nutricionista tem permissão para ajustar a meta diária de calorias.',
@@ -207,7 +281,9 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
       return;
     }
 
-    final controller = TextEditingController(text: _metaCalorica.toStringAsFixed(0));
+    final controller = TextEditingController(
+      text: _metaCalorica.toStringAsFixed(0),
+    );
     final novoValor = await showDialog<double>(
       context: context,
       builder: (context) => AlertDialog(
@@ -224,7 +300,10 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
           children: [
             Text(
               'Defina a quantidade de calorias necessárias que ${widget.paciente.nome} deve bater por dia nesta dieta:',
-              style: TextStyle(fontSize: 13, color: AppColors.getTextoSecundario(context)),
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.getTextoSecundario(context),
+              ),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -259,14 +338,20 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
         _metaCalorica = novoValor;
         _dadosService.atualizarMetaCalorica(widget.paciente.id, novoValor);
       });
-      _mostrarAviso('Meta diária atualizada para ${novoValor.toStringAsFixed(0)} kcal.');
+      _mostrarAviso(
+        'Meta diária atualizada para ${novoValor.toStringAsFixed(0)} kcal.',
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final restante = _metaCalorica - _totalConsumido;
-    final progresso = (_totalConsumido / (_metaCalorica > 0 ? _metaCalorica : 1)).clamp(0.0, 1.0);
+    final progresso =
+        (_totalConsumido / (_metaCalorica > 0 ? _metaCalorica : 1)).clamp(
+          0.0,
+          1.0,
+        );
     final isDark = AppColors.isDark(context);
 
     return Scaffold(
@@ -279,14 +364,25 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             Text(
-              widget.isNutri ? 'Prescrição de Dieta (Nutricionista)' : 'Plano Alimentar',
-              style: TextStyle(fontSize: 12, color: AppColors.getTextoSecundario(context)),
+              widget.isNutri
+                  ? 'Prescrição de Dieta (Nutricionista)'
+                  : 'Plano Alimentar',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.getTextoSecundario(context),
+              ),
             ),
           ],
         ),
-        actions: const [
-          AppleThemeToggle(size: 28),
-          SizedBox(width: 8),
+        actions: [
+          if (widget.isNutri)
+            IconButton(
+              icon: const Icon(Icons.pie_chart_outline),
+              tooltip: 'Análise Nutricional da Dieta',
+              onPressed: () => _abrirAnaliseNutricional(),
+            ),
+          const AppleThemeToggle(size: 28),
+          const SizedBox(width: 8),
         ],
       ),
       body: SingleChildScrollView(
@@ -304,14 +400,21 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.tips_and_updates_outlined, color: AppColors.verde, size: 20),
+                  const Icon(
+                    Icons.tips_and_updates_outlined,
+                    color: AppColors.verde,
+                    size: 20,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       widget.isNutri
-                          ? 'Monte o plano alimentar, adicione alimentos por refeição e o app calculará as calorias automaticamente.'
+                          ? 'Monte o plano alimentar, adicione alimentos por refeição e acompanhe calorias, macros (% VET) e micronutrientes em tempo real.'
                           : 'Acompanhe seu plano alimentar diário prescrito pela sua nutricionista.',
-                      style: TextStyle(color: AppColors.getTextoPrincipal(context), fontSize: 12),
+                      style: TextStyle(
+                        color: AppColors.getTextoPrincipal(context),
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ],
@@ -319,31 +422,77 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
             ),
             const SizedBox(height: 12),
 
-            // Botão para ver Histórico e Metas
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.bar_chart),
-                label: Text(widget.isNutri ? 'Ver Histórico e Metas do Paciente' : 'Meu Histórico e Metas'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.getVerdeDestaque(context),
-                  foregroundColor: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => HistoricoPage(
-                        paciente: widget.paciente,
-                        isNutri: widget.isNutri,
+            // Botões de navegação: Histórico & Metas + Análise Nutricional (Nutri)
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.bar_chart, size: 18),
+                    label: Text(
+                      widget.isNutri
+                          ? 'Histórico e Metas'
+                          : 'Meu Histórico e Metas',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  );
-                },
-              ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.getVerdeDestaque(context),
+                      foregroundColor: isDark
+                          ? const Color(0xFF6EE7B7)
+                          : AppColors.verdeEscuro,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 10,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => HistoricoPage(
+                            paciente: widget.paciente,
+                            isNutri: widget.isNutri,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                if (widget.isNutri) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: const Icon(Icons.pie_chart, size: 18),
+                      label: const Text(
+                        'Análise Nutricional',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.verde,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 10,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
+                      onPressed: () => _abrirAnaliseNutricional(),
+                    ),
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 16),
 
@@ -352,8 +501,11 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
               children: [
                 Expanded(
                   child: _buildSummaryCard(
-                    label: 'Consumidas',
-                    valor: '$_totalConsumido kcal',
+                    label: widget.isNutri
+                        ? 'Total Prescrito (VET)'
+                        : 'Consumidas',
+                    valor:
+                        '${widget.isNutri ? _totalPlano : _totalConsumido} kcal',
                     destaque: true,
                     cor: isDark ? const Color(0xFF4ADE80) : AppColors.verde,
                   ),
@@ -365,9 +517,15 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                     child: _buildSummaryCard(
                       label: 'Meta diária',
                       valor: '${_metaCalorica.toStringAsFixed(0)} kcal',
-                      icone: widget.isNutri ? Icons.edit_outlined : Icons.lock_outline,
-                      subtitulo: widget.isNutri ? 'Toque para editar' : 'Definido pela nutri',
-                      cor: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                      icone: widget.isNutri
+                          ? Icons.edit_outlined
+                          : Icons.lock_outline,
+                      subtitulo: widget.isNutri
+                          ? 'Toque para editar'
+                          : 'Definido pela nutri',
+                      cor: isDark
+                          ? const Color(0xFF4ADE80)
+                          : AppColors.verde,
                     ),
                   ),
                 ),
@@ -377,7 +535,9 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                     label: 'Restante',
                     valor: '${restante.toStringAsFixed(0)} kcal',
                     cor: restante < 0
-                        ? (isDark ? const Color(0xFFF87171) : AppColors.vermelho)
+                        ? (isDark
+                              ? const Color(0xFFF87171)
+                              : AppColors.vermelho)
                         : AppColors.getTextoPrincipal(context),
                   ),
                 ),
@@ -392,9 +552,13 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
               child: LinearProgressIndicator(
                 value: progresso,
                 minHeight: 8,
-                backgroundColor: isDark ? AppColors.bordaEscuro : AppColors.bordaCinza,
+                backgroundColor: isDark
+                    ? AppColors.bordaEscuro
+                    : AppColors.bordaCinza,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  restante < 0 ? AppColors.vermelho : AppColors.verde,
+                  restante < 0
+                      ? AppColors.vermelho
+                      : (isDark ? AppColors.rosaVibranteEscuro : AppColors.rosaVibrante),
                 ),
               ),
             ),
@@ -404,14 +568,27 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
               children: [
                 Text(
                   '${(progresso * 100).toStringAsFixed(0)}% da meta atingida',
-                  style: TextStyle(fontSize: 11, color: AppColors.getTextoSecundario(context)),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.getTextoSecundario(context),
+                  ),
                 ),
                 Text(
                   'Total: $_totalConsumido / ${_metaCalorica.toStringAsFixed(0)} kcal',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.getTextoSecundario(context)),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.getTextoSecundario(context),
+                  ),
                 ),
               ],
             ),
+
+            // PAINEL COMPACTO EM TEMPO REAL DE COMPOSIÇÃO NUTRICIONAL (Visão da Nutricionista)
+            if (widget.isNutri) ...[
+              const SizedBox(height: 16),
+              _buildPainelResumoNutricionalNutri(context),
+            ],
 
             const SizedBox(height: 24),
 
@@ -426,29 +603,43 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                _indiceEmEdicao != null ? Icons.edit : Icons.restaurant_menu,
-                                color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                _indiceEmEdicao != null ? 'Editar Refeição' : 'Adicionar Refeição',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.getTextoPrincipal(context),
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _indiceEmEdicao != null
+                                      ? Icons.edit
+                                      : Icons.restaurant_menu,
+                                  color: isDark
+                                      ? const Color(0xFF6EE7B7)
+                                      : AppColors.verdeEscuro,
+                                  size: 20,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 8),
+                                Flexible(
+                                  child: Text(
+                                    _indiceEmEdicao != null
+                                        ? 'Editar Refeição'
+                                        : 'Adicionar Refeição',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.getTextoPrincipal(context),
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                           if (_indiceEmEdicao != null)
                             TextButton.icon(
                               onPressed: _limparFormulario,
                               icon: const Icon(Icons.close, size: 14),
-                              label: const Text('Cancelar edição', style: TextStyle(fontSize: 12)),
+                              label: const Text(
+                                'Cancelar edição',
+                                style: TextStyle(fontSize: 12),
+                              ),
                             ),
                         ],
                       ),
@@ -460,7 +651,9 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                           Expanded(
                             flex: 3,
                             child: TextFormField(
-                              key: ValueKey('tipo_${_indiceEmEdicao ?? "novo"}'),
+                              key: ValueKey(
+                                'tipo_${_indiceEmEdicao ?? "novo"}',
+                              ),
                               initialValue: _tipo,
                               decoration: const InputDecoration(
                                 labelText: 'Tipo de refeição',
@@ -474,7 +667,9 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                           Expanded(
                             flex: 2,
                             child: TextFormField(
-                              key: ValueKey('horario_${_indiceEmEdicao ?? "novo"}'),
+                              key: ValueKey(
+                                'horario_${_indiceEmEdicao ?? "novo"}',
+                              ),
                               initialValue: _horario,
                               decoration: const InputDecoration(
                                 labelText: 'Horário',
@@ -498,79 +693,120 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                               'Alimentos & Quantidades',
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
-                                fontSize: 14,
+                                fontSize: 13,
                                 color: AppColors.getTextoPrincipal(context),
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(width: 8),
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.getVerdeDestaque(context),
-                              foregroundColor: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                              backgroundColor: AppColors.getVerdeDestaque(
+                                context,
+                              ),
+                              foregroundColor: isDark
+                                  ? const Color(0xFF6EE7B7)
+                                  : AppColors.verdeEscuro,
                               elevation: 0,
                               minimumSize: const Size(0, 32),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(6),
-                                side: BorderSide(color: AppColors.getVerdeDestaqueBorda(context)),
+                                side: BorderSide(
+                                  color: AppColors.getVerdeDestaqueBorda(
+                                    context,
+                                  ),
+                                ),
                               ),
                             ),
                             onPressed: _adicionarIngrediente,
                             icon: const Icon(Icons.add, size: 14),
-                            label: const Text('Adicionar alimento', style: TextStyle(fontSize: 12)),
+                            label: const Text(
+                              'Adicionar',
+                              style: TextStyle(fontSize: 12),
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Digite a quantidade em gramas. O aplicativo calcula as calorias em tempo real:',
-                        style: TextStyle(fontSize: 11, color: AppColors.getTextoSecundario(context)),
+                        'Digite a quantidade em gramas. O aplicativo calcula calorias e nutrientes em tempo real:',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.getTextoSecundario(context),
+                        ),
                       ),
                       const SizedBox(height: 10),
 
                       // Lista de Linhas de Alimentos no Formulário
-                      ...List.generate(_ingredientesForm.length, (index) => _buildLinhaIngrediente(index)),
+                      ...List.generate(
+                        _ingredientesForm.length,
+                        (index) => _buildLinhaIngrediente(index),
+                      ),
 
                       const SizedBox(height: 14),
 
-                      // Card do Total Calculado da Refeição Atual
+                      // Card do Total Calculado da Refeição Atual (Calorias + Macros)
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
                           color: AppColors.getVerdeDestaque(context),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: AppColors.getVerdeDestaqueBorda(context)),
+                          border: Border.all(
+                            color: AppColors.getVerdeDestaqueBorda(context),
+                          ),
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        child: Column(
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Total desta refeição:',
-                                    style: TextStyle(
-                                      color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
-                                      fontSize: 12,
-                                    ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Total desta refeição:',
+                                        style: TextStyle(
+                                          color: isDark
+                                              ? const Color(0xFF6EE7B7)
+                                              : AppColors.verdeEscuro,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      Text(
+                                        'P: ${_proteinasFormAtual.toStringAsFixed(1)}g • C: ${_carboidratosFormAtual.toStringAsFixed(1)}g • L: ${_gordurasFormAtual.toStringAsFixed(1)}g',
+                                        style: TextStyle(
+                                          color: AppColors.getTextoSecundario(
+                                            context,
+                                          ),
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  Text(
-                                    'Cálculo automático em tempo real',
-                                    style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 10),
-                                    overflow: TextOverflow.visible,
+                                ),
+                                Text(
+                                  '$_totalFormAtual kcal',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? const Color(0xFF6EE7B7)
+                                        : AppColors.verdeEscuro,
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w900,
                                   ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              '$_totalFormAtual kcal',
-                              style: TextStyle(
-                                color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w900,
-                              ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -582,7 +818,8 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                         key: ValueKey('obs_${_indiceEmEdicao ?? "novo"}'),
                         initialValue: _observacoes,
                         decoration: const InputDecoration(
-                          labelText: 'Observações (Substituições, modo de preparo...)',
+                          labelText:
+                              'Observações (Substituições, modo de preparo...)',
                         ),
                         maxLines: 2,
                         onChanged: (valor) => _observacoes = valor,
@@ -597,13 +834,19 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
                               )
                             : Text(
                                 _indiceEmEdicao != null
                                     ? 'Salvar Alterações da Refeição'
                                     : 'Adicionar Refeição ao Plano',
-                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                       ),
                     ],
@@ -630,7 +873,9 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                    color: isDark
+                        ? const Color(0xFF6EE7B7)
+                        : AppColors.verdeEscuro,
                   ),
                 ),
               ],
@@ -649,25 +894,290 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                 child: Center(
                   child: Column(
                     children: [
-                      Icon(Icons.no_meals_outlined, size: 40, color: AppColors.getTextoSecundario(context)),
+                      Icon(
+                        Icons.no_meals_outlined,
+                        size: 40,
+                        color: AppColors.getTextoSecundario(context),
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         'Nenhuma refeição adicionada ainda.',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.getTextoPrincipal(context)),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.getTextoPrincipal(context),
+                        ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Adicione alimentos no formulário acima para compor a dieta.',
-                        style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 12),
+                        style: TextStyle(
+                          color: AppColors.getTextoSecundario(context),
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
 
-            ...List.generate(_refeicoes.length, (index) => _buildCardRefeicao(index)),
+            ...List.generate(
+              _refeicoes.length,
+              (index) => _buildCardRefeicao(index),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  // Resumo rápido de macros e % do VET que atualiza na hora enquanto a nutri monta a dieta
+  Widget _buildPainelResumoNutricionalNutri(BuildContext context) {
+    final comp = _composicaoPlano;
+    final isDark = AppColors.isDark(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.analytics_outlined,
+                        size: 19,
+                        color: isDark
+                            ? const Color(0xFF6EE7B7)
+                            : AppColors.verdeEscuro,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'Composição Nutricional (VET)',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                            color: AppColors.getTextoPrincipal(context),
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                InkWell(
+                  onTap: () => _abrirAnaliseNutricional(abaInicial: 0),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    child: Text(
+                      'Ver completo →',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: isDark
+                            ? const Color(0xFF6EE7B7)
+                            : AppColors.verdeEscuro,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+
+            // Barra segmentada proporcional do VET (CHO / PTN / LIP)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(
+                height: 10,
+                child: _refeicoes.isEmpty
+                    ? Container(
+                        color: isDark
+                            ? AppColors.bordaEscuro
+                            : AppColors.bordaCinza,
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            flex: (comp.percentualCarboidratosVET * 10)
+                                .round()
+                                .clamp(1, 1000),
+                            child: Container(color: _corCarboidrato),
+                          ),
+                          Expanded(
+                            flex: (comp.percentualProteinasVET * 10)
+                                .round()
+                                .clamp(1, 1000),
+                            child: Container(color: _corProteina),
+                          ),
+                          Expanded(
+                            flex: (comp.percentualGordurasVET * 10)
+                                .round()
+                                .clamp(1, 1000),
+                            child: Container(color: _corGordura),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Indicadores rápidos de Carboidratos, Proteínas, Lipídios e Fibras
+            Row(
+              children: [
+                Expanded(
+                  child: _buildMiniMacroPill(
+                    context,
+                    sigla: 'CHO',
+                    nome: 'Carboidratos',
+                    gramas: comp.totalCarboidratos,
+                    percentual: comp.percentualCarboidratosVET,
+                    cor: _corCarboidrato,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _buildMiniMacroPill(
+                    context,
+                    sigla: 'PTN',
+                    nome: 'Proteínas',
+                    gramas: comp.totalProteinas,
+                    percentual: comp.percentualProteinasVET,
+                    cor: _corProteina,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _buildMiniMacroPill(
+                    context,
+                    sigla: 'LIP',
+                    nome: 'Lipídios',
+                    gramas: comp.totalGorduras,
+                    percentual: comp.percentualGordurasVET,
+                    cor: _corGordura,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _buildMiniMacroPill(
+                    context,
+                    sigla: 'FIB',
+                    nome: 'Fibras',
+                    gramas: comp.totalFibras,
+                    percentual: null,
+                    subtextoCustom: 'Meta: 25g',
+                    cor: _corFibra,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // Botões de atalho direto para Micronutrientes e Raio-X por Refeição/Alimento
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _abrirAnaliseNutricional(abaInicial: 1),
+                    icon: const Icon(Icons.science_outlined, size: 15),
+                    label: const Text(
+                      'Ver Micronutrientes',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      side: BorderSide(color: AppColors.getBorda(context)),
+                      foregroundColor: AppColors.getTextoPrincipal(context),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _abrirAnaliseNutricional(abaInicial: 2),
+                    icon: const Icon(Icons.layers_outlined, size: 15),
+                    label: const Text(
+                      'Origem por Alimento',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      side: BorderSide(color: AppColors.getBorda(context)),
+                      foregroundColor: AppColors.getTextoPrincipal(context),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniMacroPill(
+    BuildContext context, {
+    required String sigla,
+    required String nome,
+    required double gramas,
+    required double? percentual,
+    String? subtextoCustom,
+    required Color cor,
+  }) {
+    final isDark = AppColors.isDark(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.fundoPaginaEscuro : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: cor.withValues(alpha: 0.30)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            nome,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: AppColors.getTextoSecundario(context),
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${gramas.toStringAsFixed(1)}g',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: cor,
+            ),
+          ),
+          Text(
+            percentual != null
+                ? '${percentual.toStringAsFixed(0)}% VET'
+                : (subtextoCustom ?? ''),
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: AppColors.getTextoSecundario(context),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -694,12 +1204,21 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                 Expanded(
                   child: Text(
                     label,
-                    style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 11),
+                    style: TextStyle(
+                      color: AppColors.getTextoSecundario(context),
+                      fontSize: 11,
+                    ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 if (icone != null)
-                  Icon(icone, size: 14, color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro),
+                  Icon(
+                    icone,
+                    size: 14,
+                    color: isDark
+                        ? const Color(0xFF6EE7B7)
+                        : AppColors.verdeEscuro,
+                  ),
               ],
             ),
             const SizedBox(height: 6),
@@ -708,7 +1227,11 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w800,
-                color: cor ?? (destaque ? AppColors.verde : AppColors.getTextoPrincipal(context)),
+                color:
+                    cor ??
+                    (destaque
+                        ? AppColors.verde
+                        : AppColors.getTextoPrincipal(context)),
               ),
             ),
             if (subtitulo != null) ...[
@@ -717,7 +1240,9 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                 subtitulo,
                 style: TextStyle(
                   fontSize: 9,
-                  color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                  color: isDark
+                      ? const Color(0xFF6EE7B7)
+                      : AppColors.verdeEscuro,
                   fontWeight: FontWeight.w600,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -756,7 +1281,10 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                   decoration: const InputDecoration(
                     labelText: 'Alimento',
                     isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                    contentPadding: EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
                   ),
                   items: BancoAlimentos.lista.map((alimento) {
                     return DropdownMenuItem(
@@ -775,20 +1303,25 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                   },
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
 
-              // Quantidade em Gramas com recálculo em tempo real
+              // Quantidade em Gramas ou ML com recálculo em tempo real
               Expanded(
                 flex: 3,
                 child: TextFormField(
-                  key: ValueKey('${item.hashCode}_gramas'),
-                  initialValue: item.gramas == 0 ? '' : item.gramas.toStringAsFixed(0),
+                  key: ValueKey('${item.hashCode}_${item.alimentoNome}_quantidade'),
+                  initialValue: item.gramas == 0
+                      ? ''
+                      : item.gramas.toStringAsFixed(0),
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Gramas (g)',
+                  decoration: InputDecoration(
+                    labelText: item.isLiquido ? 'ml' : 'Gramas',
                     isDense: true,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                    suffixText: 'g',
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 8,
+                    ),
+                    suffixText: item.unidadeMedida,
                   ),
                   onChanged: (valor) {
                     setState(() {
@@ -798,30 +1331,38 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                 ),
               ),
 
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
 
-              // Botão remover linha
-              IconButton(
-                onPressed: () => _removerIngrediente(index),
-                icon: const Icon(Icons.delete_outline, color: AppColors.vermelho, size: 20),
-                visualDensity: VisualDensity.compact,
-                tooltip: 'Remover alimento',
+              // Botão remover linha compacto
+              InkWell(
+                onTap: () => _removerIngrediente(index),
+                borderRadius: BorderRadius.circular(6),
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(
+                    Icons.delete_outline,
+                    color: AppColors.vermelho,
+                    size: 20,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 4),
 
-          // Sub-linha indicando calorias resultantes daquele alimento
+          // Sub-linha indicando calorias e macros resultantes daquele alimento
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
                 child: Text(
-                  item.alimentoObj?.porcaoSugerida != null
-                      ? 'Sugestão: ${item.alimentoObj!.porcaoSugerida}'
-                      : '',
-                  style: TextStyle(fontSize: 10, color: AppColors.getTextoSecundario(context)),
+                  'P: ${item.proteinas.toStringAsFixed(1)}g • C: ${item.carboidratos.toStringAsFixed(1)}g • L: ${item.gorduras.toStringAsFixed(1)}g${item.alimentoObj?.porcaoSugerida != null ? " (${item.alimentoObj!.porcaoSugerida})" : ""}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppColors.getTextoSecundario(context),
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 8),
@@ -832,11 +1373,13 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'Calculado: ${item.calorias} kcal',
+                  '${item.calorias} kcal',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                    color: isDark
+                        ? const Color(0xFF6EE7B7)
+                        : AppColors.verdeEscuro,
                   ),
                 ),
               ),
@@ -851,6 +1394,9 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
   Widget _buildCardRefeicao(int index) {
     final refeicao = _refeicoes[index];
     final isDark = AppColors.isDark(context);
+    final pctVetRefeicao = _totalPlano > 0
+        ? (refeicao.totalCalorias / _totalPlano) * 100.0
+        : 0.0;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -874,7 +1420,9 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                         child: Icon(
                           Icons.restaurant,
                           size: 16,
-                          color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                          color: isDark
+                              ? const Color(0xFF6EE7B7)
+                              : AppColors.verdeEscuro,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -882,25 +1430,68 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              refeicao.tipo,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                color: AppColors.getTextoPrincipal(context),
-                              ),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    refeicao.tipo,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                      color: AppColors.getTextoPrincipal(
+                                        context,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (widget.isNutri && _totalPlano > 0) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.getVerdeDestaque(
+                                        context,
+                                      ),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      '${pctVetRefeicao.toStringAsFixed(0)}% do VET',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: isDark
+                                            ? const Color(0xFF6EE7B7)
+                                            : AppColors.verdeEscuro,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                             if (refeicao.horarioSugerido != null)
                               Text(
                                 'Horário sugerido: ${refeicao.horarioSugerido}',
-                                style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 11),
+                                style: TextStyle(
+                                  color: AppColors.getTextoSecundario(context),
+                                  fontSize: 11,
+                                ),
                               ),
-                            if (refeicao.observacoes != null && refeicao.observacoes!.isNotEmpty)
+                            if (refeicao.observacoes != null &&
+                                refeicao.observacoes!.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
                                   'Obs: ${refeicao.observacoes}',
-                                  style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 11, fontStyle: FontStyle.italic),
+                                  style: TextStyle(
+                                    color: AppColors.getTextoSecundario(
+                                      context,
+                                    ),
+                                    fontSize: 11,
+                                    fontStyle: FontStyle.italic,
+                                  ),
                                 ),
                               ),
                           ],
@@ -914,9 +1505,15 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                     children: [
                       IconButton(
                         onPressed: () => _editarRefeicao(index),
-                        icon: const Icon(Icons.edit, size: 16, color: Colors.blue),
+                        icon: const Icon(
+                          Icons.edit,
+                          size: 16,
+                          color: Colors.blue,
+                        ),
                         style: IconButton.styleFrom(
-                          backgroundColor: isDark ? const Color(0xFF1E3A8A) : const Color(0xFFEFF6FF),
+                          backgroundColor: isDark
+                              ? const Color(0xFF1E3A8A)
+                              : const Color(0xFFEFF6FF),
                           visualDensity: VisualDensity.compact,
                         ),
                         tooltip: 'Editar esta refeição',
@@ -924,9 +1521,15 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                       const SizedBox(width: 4),
                       IconButton(
                         onPressed: () => _excluirRefeicao(index),
-                        icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.vermelho),
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          size: 16,
+                          color: AppColors.vermelho,
+                        ),
                         style: IconButton.styleFrom(
-                          backgroundColor: isDark ? AppColors.vermelhoFundoEscuro : AppColors.vermelhoClaro,
+                          backgroundColor: isDark
+                              ? AppColors.vermelhoFundoEscuro
+                              : AppColors.vermelhoClaro,
                           visualDensity: VisualDensity.compact,
                         ),
                         tooltip: 'Excluir esta refeição',
@@ -945,15 +1548,36 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Expanded(
-                      child: Text(
-                        '• ${item.alimentoNome ?? "Alimento"} (${item.gramas.toStringAsFixed(0)}g)',
-                        style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 13),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '• ${item.alimentoNome ?? "Alimento"} (${item.gramas.toStringAsFixed(0)}${item.unidadeMedida})',
+                            style: TextStyle(
+                              color: AppColors.getTextoPrincipal(context),
+                              fontSize: 13,
+                            ),
+                          ),
+                          if (widget.isNutri)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 10, top: 1),
+                              child: Text(
+                                'P: ${item.proteinas.toStringAsFixed(1)}g • C: ${item.carboidratos.toStringAsFixed(1)}g • L: ${item.gorduras.toStringAsFixed(1)}g',
+                                style: TextStyle(
+                                  color: AppColors.getTextoSecundario(context),
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                     Text(
                       '${item.calorias} kcal',
                       style: TextStyle(
-                        color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                        color: isDark
+                            ? const Color(0xFF6EE7B7)
+                            : AppColors.verdeEscuro,
                         fontWeight: FontWeight.w700,
                         fontSize: 13,
                       ),
@@ -967,12 +1591,28 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Total da refeição',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
-                    color: AppColors.getTextoPrincipal(context),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Total da refeição',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: AppColors.getTextoPrincipal(context),
+                        ),
+                      ),
+                      if (widget.isNutri)
+                        Text(
+                          'PTN: ${refeicao.totalProteinas.toStringAsFixed(1)}g | CHO: ${refeicao.totalCarboidratos.toStringAsFixed(1)}g | LIP: ${refeicao.totalGorduras.toStringAsFixed(1)}g | FIB: ${refeicao.totalFibras.toStringAsFixed(1)}g',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.getTextoSecundario(context),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 Text(

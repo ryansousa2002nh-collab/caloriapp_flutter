@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/biometria_service.dart';
 import '../services/dados_service.dart';
 import '../theme/app_theme.dart';
 import 'pacientes_page.dart';
@@ -16,18 +19,28 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage>
     with SingleTickerProviderStateMixin {
-  final _usernameController = TextEditingController(text: 'paciente.teste');
-  final _passwordController = TextEditingController(text: '123');
+  final _usernameController = TextEditingController(text: '');
+  final _passwordController = TextEditingController(text: '');
 
   String _erro = '';
   bool _carregando = false;
   bool _senhaOculta = true;
+  bool _podeBiometria = false;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
+    // Dispara o pré-aquecimento invisível no Render enquanto o usuário digita
+    ApiService.aquecerServidorSilencioso();
+
+    BiometriaService.isBiometriaAtiva().then((ativa) {
+      if (ativa && mounted) {
+        setState(() => _podeBiometria = true);
+      }
+    });
+
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -36,6 +49,24 @@ class _LoginPageState extends State<LoginPage>
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
     _animationController.forward();
+  }
+
+  Future<void> _fazerLoginComBiometria() async {
+    final autenticou = await BiometriaService.autenticar(
+      motivo: 'Toque no sensor para entrar rapidamente no Nutri+',
+    );
+    if (autenticou) {
+      await _fazerLogin();
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Autenticação biométrica não confirmada. Digite sua senha.',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _fazerLogin() async {
@@ -54,8 +85,14 @@ class _LoginPageState extends State<LoginPage>
 
       if (sucesso) {
         final tipoStr = await ApiService.getTipoUsuario() ?? 'NUTRI';
-        DadosService().setTipoUsuarioLogado(tipoStr);
-        await DadosService().carregarDadosDoBackend();
+        final dadosService = DadosService();
+        dadosService.setTipoUsuarioLogado(tipoStr);
+
+        // 1. Carrega dados salvos em cache imediatamente (milissegundos)
+        await dadosService.carregarDadosLocaisCache();
+
+        // 2. Dispara a sincronização com o Render em segundo plano (não trava a tela de login)
+        unawaited(dadosService.sincronizarComBackend());
 
         if (!mounted) return;
         setState(() => _carregando = false);
@@ -201,6 +238,31 @@ class _LoginPageState extends State<LoginPage>
                           )
                         : const Text('Entrar'),
                   ),
+                  if (_podeBiometria) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _carregando ? null : _fazerLoginComBiometria,
+                        icon: const Icon(
+                          Icons.fingerprint,
+                          size: 22,
+                          color: AppColors.verde,
+                        ),
+                        label: const Text(
+                          'Entrar com Biometria',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.verde,
+                          side: const BorderSide(
+                            color: AppColors.verde,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: AppSpacing.md),
                   TextButton(
                     onPressed: () => Navigator.push(

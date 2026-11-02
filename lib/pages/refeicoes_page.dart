@@ -3,15 +3,21 @@ import '../models/alimento_model.dart';
 import '../models/dieta_model.dart';
 import '../models/paciente_model.dart';
 import '../models/registro_diario_model.dart';
+import '../services/chat_service.dart';
 import '../services/dados_service.dart';
+import '../services/lembretes_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/apple_theme_toggle.dart';
+import 'chat_nutri_page.dart';
 
 class _IngredienteForm {
   String alimentoNome = BancoAlimentos.lista.first.nome;
   int quantidadeGramas = 100;
   String observacoes = '';
+
+  bool get isLiquido => BancoAlimentos.ehLiquido(alimentoNome);
+  String get unidade => isLiquido ? 'ml' : 'g';
 
   int get caloriasCalculadas {
     if (alimentoNome.trim().isEmpty || quantidadeGramas <= 0) return 0;
@@ -36,13 +42,24 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
   void initState() {
     super.initState();
     _carregarPaciente();
+    _dadosService.addListener(_onDadosModificados);
     if (_dadosService.getPacientes().length <= 1 && _paciente.planoAlimentar.isEmpty) {
-      _dadosService.carregarDadosDoBackend().then((_) {
-        if (mounted) {
-          setState(() {
-            _carregarPaciente();
-          });
-        }
+      _dadosService.sincronizarComBackend();
+    }
+    // Inicializa e agenda os lembretes com base nos horários definidos pela Nutri
+    LembretesService.agendarLembretesDieta(_paciente.planoAlimentar);
+  }
+
+  @override
+  void dispose() {
+    _dadosService.removeListener(_onDadosModificados);
+    super.dispose();
+  }
+
+  void _onDadosModificados() {
+    if (mounted) {
+      setState(() {
+        _carregarPaciente();
       });
     }
   }
@@ -138,9 +155,55 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
               ],
             ),
           ),
-          actions: const [
-            AppleThemeToggle(size: 28),
-            SizedBox(width: 8),
+          actions: [
+            AnimatedBuilder(
+              animation: ChatService(),
+              builder: (context, _) {
+                final naoLidas = ChatService().obterTotalNaoLidasParaPaciente(_paciente.id);
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      tooltip: 'Falar com a Nutri',
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatNutriPage(
+                              paciente: _paciente,
+                              isNutri: false,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    if (naoLidas > 0)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: AppColors.rosaVibrante,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            '$naoLidas',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+            const AppleThemeToggle(size: 28),
+            const SizedBox(width: 8),
           ],
           bottom: TabBar(
             indicatorColor: AppColors.verde,
@@ -201,7 +264,7 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                             '${metaDiaria.toStringAsFixed(0)} kcal',
                             icone: Icons.lock_outline,
                             subtitulo: 'Fixado pela nutri',
-                            cor: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                            cor: isDark ? const Color(0xFF4ADE80) : AppColors.verde,
                           ),
                         ),
                       ),
@@ -226,7 +289,9 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                       minHeight: 8,
                       backgroundColor: isDark ? AppColors.bordaEscuro : AppColors.bordaCinza,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        restante < 0 ? AppColors.vermelho : AppColors.verde,
+                        restante < 0
+                            ? AppColors.vermelho
+                            : (isDark ? AppColors.rosaVibranteEscuro : AppColors.rosaVibrante),
                       ),
                     ),
                   ),
@@ -248,6 +313,58 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                       ),
                     ],
                   ),
+
+                  // Lembrete inteligente da Próxima Refeição definida pela Nutri
+                  Builder(
+                    builder: (context) {
+                      final proxima = LembretesService.calcularProximaRefeicao(_paciente.planoAlimentar);
+                      if (proxima == null) return const SizedBox.shrink();
+                      return Container(
+                        margin: const EdgeInsets.only(top: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isDark ? AppColors.verdeFundoEscuro : AppColors.verdeClaro,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.getVerdeDestaqueBorda(context)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.notifications_active_outlined, size: 18, color: AppColors.verde),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Próxima Refeição: ${proxima.refeicao.tipo} às ${proxima.horario} (${proxima.descricaoTempo})',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.getTextoPrincipal(context),
+                                ),
+                              ),
+                            ),
+                            InkWell(
+                              onTap: () async {
+                                await LembretesService.dispararNotificacaoImediata(
+                                  titulo: '🥗 Lembrete: ${proxima.refeicao.tipo}',
+                                  corpo: 'Horário estabelecido pela Nutri: ${proxima.horario} (${proxima.descricaoTempo}). Bom apetite!',
+                                );
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Notificação de teste enviada com sucesso para o celular!'),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              child: const Padding(
+                                padding: EdgeInsets.all(4),
+                                child: Icon(Icons.touch_app_outlined, size: 16, color: AppColors.verde),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
@@ -262,6 +379,39 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
               ),
             ),
           ],
+        ),
+        floatingActionButton: AnimatedBuilder(
+          animation: ChatService(),
+          builder: (context, _) {
+            final naoLidas = ChatService().obterTotalNaoLidasParaPaciente(_paciente.id);
+            return FloatingActionButton.extended(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ChatNutriPage(
+                      paciente: _paciente,
+                      isNutri: false,
+                    ),
+                  ),
+                );
+              },
+              backgroundColor: AppColors.verde,
+              icon: Badge(
+                isLabelVisible: naoLidas > 0,
+                label: Text('$naoLidas'),
+                backgroundColor: AppColors.rosaVibrante,
+                child: const Icon(Icons.chat_outlined, color: Colors.white),
+              ),
+              label: const Text(
+                'Falar com a Nutri',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            );
+          },
         ),
       ),
     );
@@ -514,7 +664,7 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                                     Padding(
                                       padding: const EdgeInsets.symmetric(horizontal: 16),
                                       child: Text(
-                                        '${ing.quantidadeGramas}g',
+                                        '${ing.quantidadeGramas}${ing.unidade}',
                                         style: TextStyle(
                                           fontSize: 20,
                                           fontWeight: FontWeight.bold,
@@ -556,15 +706,19 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              'Total a descontar: -$totalAdicionado kcal',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            Expanded(
+                              child: Text(
+                                'A descontar: -$totalAdicionado kcal',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
+                            const SizedBox(width: 8),
                             Text(
                               'Restará: ${novoRestantePrevisto.toStringAsFixed(0)} kcal',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                                fontSize: 12,
                                 color: novoRestantePrevisto < 0 ? AppColors.vermelho : AppColors.verde,
                               ),
                             ),
@@ -773,7 +927,7 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${item.alimentoNome} — ${item.gramas.toStringAsFixed(0)}g',
+                            '${item.alimentoNome} — ${item.gramas.toStringAsFixed(0)}${BancoAlimentos.obterUnidade(item.alimentoNome ?? "")}',
                             style: TextStyle(color: AppColors.getTextoSecundario(context), fontSize: 13),
                           ),
                           if (isRegistro &&
