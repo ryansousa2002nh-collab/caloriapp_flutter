@@ -286,122 +286,210 @@ class _PacientesPageState extends State<PacientesPage> {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => CriarDietaPage(
-                paciente: paciente,
-                isNutri: true, // nutricionista tem permissão de edição
-              ),
-            ),
-          );
-          setState(() {}); // atualiza ao voltar
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            children: [
-              // Avatar com foto ou iniciais
-              Hero(
-                tag: 'paciente_avatar_${paciente.id}',
-                child: CircleAvatar(
-                  radius: 26,
-                  backgroundColor: isDark ? AppColors.verdeFundoEscuro : AppColors.verdeClaro,
-                  backgroundImage: paciente.fotoUrl != null ? NetworkImage(paciente.fotoUrl!) : null,
-                  child: paciente.fotoUrl == null
-                      ? Text(
-                          paciente.nome.isNotEmpty ? paciente.nome[0].toUpperCase() : 'P',
-                          style: TextStyle(
-                            color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        )
-                      : null,
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CriarDietaPage(
+                    paciente: paciente,
+                    isNutri: true, // nutricionista tem permissão de edição
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
+              );
+              setState(() {}); // atualiza ao voltar
+            },
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+              child: Row(
+                children: [
+                  // Avatar com foto ou iniciais
+                  Hero(
+                    tag: 'paciente_avatar_${paciente.id}',
+                    child: CircleAvatar(
+                      radius: 26,
+                      backgroundColor: isDark ? AppColors.verdeFundoEscuro : AppColors.verdeClaro,
+                      backgroundImage: paciente.fotoUrl != null ? NetworkImage(paciente.fotoUrl!) : null,
+                      child: paciente.fotoUrl == null
+                          ? Text(
+                              paciente.nome.isNotEmpty ? paciente.nome[0].toUpperCase() : 'P',
+                              style: TextStyle(
+                                color: isDark ? const Color(0xFF6EE7B7) : AppColors.verdeEscuro,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
 
-              // Informações do Paciente
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      paciente.nome,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                        color: AppColors.getTextoPrincipal(context),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '@${paciente.usuario}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.getTextoSecundario(context),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
+                  // Informações do Paciente
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.local_fire_department, size: 13, color: Colors.orange.shade700),
-                        const SizedBox(width: 3),
-                        Expanded(
+                        Padding(
+                          padding: const EdgeInsets.only(right: 28),
                           child: Text(
-                            'Consumido Hoje: ${paciente.totalCaloriasConsumidasHoje} / ${paciente.metaCalorica.toStringAsFixed(0)} kcal',
+                            paciente.nome,
                             style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: isDark ? AppColors.textoSecundarioEscuro : AppColors.getTextoSecundario(context),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                              color: AppColors.getTextoPrincipal(context),
                             ),
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              AnimatedBuilder(
-                animation: ChatService(),
-                builder: (context, _) {
-                  final naoLidas = ChatService().obterNaoLidasDoPaciente(paciente.id);
-                  return IconButton(
-                    icon: Badge(
-                      isLabelVisible: naoLidas > 0,
-                      label: Text('$naoLidas'),
-                      backgroundColor: AppColors.rosaVibrante,
-                      child: const Icon(Icons.chat_outlined, size: 20, color: AppColors.verde),
-                    ),
-                    tooltip: 'Conversar com ${paciente.nome}',
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatNutriPage(
-                            paciente: paciente,
-                            isNutri: true,
+                        const SizedBox(height: 2),
+                        Text(
+                          '@${paciente.usuario}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.getTextoSecundario(context),
                           ),
                         ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.local_fire_department, size: 13, color: Colors.orange.shade700),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                'Consumido Hoje: ${paciente.totalCaloriasConsumidasHoje} / ${paciente.metaCalorica.toStringAsFixed(0)} kcal',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? AppColors.textoSecundarioEscuro : AppColors.getTextoSecundario(context),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  AnimatedBuilder(
+                    animation: ChatService(),
+                    builder: (context, _) {
+                      final naoLidas = ChatService().obterNaoLidasDoPaciente(paciente.id);
+                      return IconButton(
+                        icon: Badge(
+                          isLabelVisible: naoLidas > 0,
+                          label: Text('$naoLidas'),
+                          backgroundColor: AppColors.rosaVibrante,
+                          child: const Icon(Icons.chat_outlined, size: 20, color: AppColors.verde),
+                        ),
+                        tooltip: 'Conversar com ${paciente.nome}',
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChatNutriPage(
+                                paciente: paciente,
+                                isNutri: true,
+                              ),
+                            ),
+                          );
+                        },
                       );
                     },
-                  );
-                },
+                  ),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 20,
+                    color: AppColors.getTextoSecundario(context),
+                  ),
+                ],
               ),
-              Icon(
-                Icons.chevron_right,
-                size: 20,
-                color: AppColors.getTextoSecundario(context),
+            ),
+          ),
+          Positioned(
+            top: 6,
+            right: 6,
+            child: Material(
+              color: Colors.transparent,
+              child: IconButton(
+                icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                tooltip: 'Excluir paciente',
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(),
+                splashRadius: 18,
+                onPressed: () => _confirmarExclusaoPaciente(paciente),
               ),
-            ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmarExclusaoPaciente(PacienteModel paciente) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: AppColors.getCard(context),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.delete_forever, color: Colors.redAccent, size: 24),
+            const SizedBox(width: 8),
+            Text(
+              'Excluir Paciente',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: AppColors.getTextoPrincipal(context),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'Deseja realmente excluir o paciente "${paciente.nome}"?\n\nEsta ação removerá o paciente da lista e cancelará seu acesso.',
+          style: TextStyle(
+            fontSize: 14,
+            color: AppColors.getTextoSecundario(context),
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text(
+              'Cancelar',
+              style: TextStyle(color: AppColors.getTextoSecundario(context)),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              final sucesso = await _dadosService.excluirPaciente(paciente.id, email: paciente.email);
+              if (!mounted) return;
+              setState(() {});
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    sucesso
+                        ? 'Paciente "${paciente.nome}" excluído com sucesso!'
+                        : 'Erro ao excluir paciente.',
+                  ),
+                  backgroundColor: sucesso ? AppColors.verde : AppColors.vermelho,
+                ),
+              );
+            },
+            child: const Text('Excluir', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }
@@ -502,25 +590,25 @@ class _PacientesPageState extends State<PacientesPage> {
                               }
 
                               setModalState(() => carregando = true);
-                              final sucesso = await ApiService.preCadastrarPaciente(nome, email, data);
+                              final resultado = await ApiService.preCadastrarPaciente(nome, email, data);
                               setModalState(() => carregando = false);
 
                               if (!context.mounted) return;
 
-                              if (sucesso) {
+                              if (resultado['sucesso'] == true) {
                                 Navigator.pop(context);
                                 await _recarregarPacientes();
                                 if (!mounted) return;
                                 ScaffoldMessenger.of(this.context).showSnackBar(
                                   const SnackBar(
-                                    content: Text('Paciente cadastrado com sucesso!'),
+                                    content: Text('Pré-cadastro realizado com sucesso na nuvem! O paciente já pode criar seu login.'),
                                     backgroundColor: AppColors.verde,
                                   ),
                                 );
                               } else {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Erro ao cadastrar paciente. Verifique os dados.'),
+                                  SnackBar(
+                                    content: Text(resultado['mensagem'] ?? 'Erro ao cadastrar paciente. Verifique os dados.'),
                                     backgroundColor: AppColors.vermelho,
                                   ),
                                 );

@@ -54,20 +54,21 @@ class _CadastroPageState extends State<CadastroPage> {
     }
 
     setState(() => _carregando = true);
-    final sucesso = await ApiService.validarCadastro(nome, email, data);
+    final resultado = await ApiService.validarCadastro(nome, email, data);
     setState(() => _carregando = false);
 
     if (!mounted) return;
 
-    if (sucesso) {
+    if (resultado['sucesso'] == true) {
       setState(() => _etapa = 2);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'E-mail não autorizado ou não encontrado no pré-cadastro da nutricionista. Solicite seu cadastro à Dra. Juliana.',
+            resultado['mensagem'] ??
+                'E-mail não autorizado ou não encontrado no pré-cadastro da nutricionista. Solicite seu cadastro à Dra. Juliana.',
           ),
-          duration: Duration(seconds: 4),
+          duration: const Duration(seconds: 4),
           backgroundColor: AppColors.vermelho,
         ),
       );
@@ -106,12 +107,12 @@ class _CadastroPageState extends State<CadastroPage> {
     }
 
     setState(() => _carregando = true);
-    final sucesso = await ApiService.finalizarCadastro(nome, email, data, username, senha);
+    final resultado = await ApiService.finalizarCadastro(nome, email, data, username, senha);
     setState(() => _carregando = false);
 
     if (!mounted) return;
 
-    if (sucesso) {
+    if (resultado['sucesso'] == true) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Usuário criado com sucesso! Faça seu login.'),
@@ -121,8 +122,11 @@ class _CadastroPageState extends State<CadastroPage> {
       Navigator.pop(context); // Volta para a tela de Login
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Erro ao finalizar o cadastro. O usuário já pode existir.'),
+        SnackBar(
+          content: Text(
+            resultado['mensagem'] ??
+                'Erro ao finalizar o cadastro. O usuário já pode existir.',
+          ),
           backgroundColor: AppColors.vermelho,
         ),
       );

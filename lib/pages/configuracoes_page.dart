@@ -191,10 +191,22 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
                       }
 
                       if (isNutri) {
-                        _dadosService.atualizarPerfilNutri(nome: novoNome, email: novoEmail);
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setString('config_nutri_nome', novoNome);
-                        await prefs.setString('config_nutri_email', novoEmail);
+                        final res = await ApiService.atualizarMeuPerfil(nome: novoNome, email: novoEmail);
+                        if (res['sucesso'] == true) {
+                          _dadosService.atualizarPerfilNutri(nome: novoNome, email: novoEmail);
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setString('config_nutri_nome', novoNome);
+                          await prefs.setString('config_nutri_email', novoEmail);
+                        } else {
+                          if (!modalContext.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(res['mensagem'] ?? 'Erro ao salvar perfil no servidor.'),
+                              backgroundColor: AppColors.vermelho,
+                            ),
+                          );
+                          return;
+                        }
                       } else {
                         await _dadosService.atualizarDadosPerfilPaciente(
                           paciente.id,
@@ -232,6 +244,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
     final novaSenhaCtrl = TextEditingController();
     final confirmarSenhaCtrl = TextEditingController();
     bool ocultarSenhas = true;
+    bool alterandoSenha = false;
 
     showModalBottomSheet(
       context: context,
@@ -383,43 +396,65 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: () async {
-                          if (senhaAtualCtrl.text.isEmpty || novaSenhaCtrl.text.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Preencha a senha atual e a nova senha.')),
-                            );
-                            return;
-                          }
-                          if (novaSenhaCtrl.text.length < 4) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('A nova senha deve ter pelo menos 4 caracteres.')),
-                            );
-                            return;
-                          }
-                          if (novaSenhaCtrl.text != confirmarSenhaCtrl.text) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('A confirmação da senha não confere.'),
-                                backgroundColor: AppColors.vermelho,
-                              ),
-                            );
-                            return;
-                          }
+                        onPressed: alterandoSenha
+                            ? null
+                            : () async {
+                                if (senhaAtualCtrl.text.isEmpty || novaSenhaCtrl.text.isEmpty) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Preencha a senha atual e a nova senha.')),
+                                  );
+                                  return;
+                                }
+                                if (novaSenhaCtrl.text.length < 4) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('A nova senha deve ter pelo menos 4 caracteres.')),
+                                  );
+                                  return;
+                                }
+                                if (novaSenhaCtrl.text != confirmarSenhaCtrl.text) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('A confirmação da senha não confere.'),
+                                      backgroundColor: AppColors.vermelho,
+                                    ),
+                                  );
+                                  return;
+                                }
 
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.setString('config_senha_salva', novaSenhaCtrl.text);
+                                setModalState(() => alterandoSenha = true);
+                                final res = await ApiService.alterarSenha(
+                                  senhaAtual: senhaAtualCtrl.text,
+                                  novaSenha: novaSenhaCtrl.text,
+                                );
+                                setModalState(() => alterandoSenha = false);
 
-                          if (!modalContext.mounted) return;
-                          Navigator.pop(modalContext);
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Senha alterada com sucesso!'),
-                              backgroundColor: AppColors.verde,
-                            ),
-                          );
-                        },
-                        child: const Text('Atualizar Senha'),
+                                if (res['sucesso'] == true) {
+                                  if (!modalContext.mounted) return;
+                                  Navigator.pop(modalContext);
+                                  if (!mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(res['mensagem'] ?? 'Senha alterada com sucesso!'),
+                                      backgroundColor: AppColors.verde,
+                                    ),
+                                  );
+                                } else {
+                                  if (!modalContext.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(res['mensagem'] ?? 'Erro ao alterar a senha.'),
+                                      backgroundColor: AppColors.vermelho,
+                                    ),
+                                  );
+                                }
+                              },
+                        child: alterandoSenha
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                              )
+                            : const Text('Atualizar Senha'),
                       ),
                     ),
                   ],

@@ -324,6 +324,12 @@ class DadosService extends ChangeNotifier {
     }
   }
 
+  Future<bool> excluirPaciente(int pacienteId, {String? email}) async {
+    _pacientes.removeWhere((p) => p.id == pacienteId || (email != null && p.email?.toLowerCase() == email.toLowerCase()));
+    notifyListeners();
+    return await ApiService.excluirPaciente(pacienteId, email: email);
+  }
+
   void atualizarMetaCalorica(int pacienteId, double novaMeta) {
     final paciente = getPacientePorId(pacienteId) ?? getPacienteAtivo();
     paciente.metaCalorica = novaMeta;

@@ -30,65 +30,167 @@ class ApiService {
     return _lerPacientesLocais(prefs);
   }
 
-  /// Faz login via API do Render ou utiliza o backend local integrado caso esteja sem internet.
-  /// - Para entrar como Nutricionista: usuário `nutri` ou `juliana` (senha `123`)
-  /// - Para entrar como Paciente: usuário `paciente.teste` (senha `123`)
+  /// Faz login via API do Render ou utiliza a sessão salva no dispositivo.
+  /// - Para entrar como Nutricionista: usuário `juliana.nutri`
+  /// - Para entrar como Paciente: usuário criado no pré-cadastro
   static Future<bool> login(String username, String password) async {
     final cleanUser = username.trim().toLowerCase();
     if (cleanUser.isEmpty || password.isEmpty) return false;
 
     final prefs = await SharedPreferences.getInstance();
     await _garantirDadosLocaisIniciais(prefs);
-    await prefs.setString('logged_password', password);
 
+    http.Response? response;
     try {
-      final response = await http
+      response = await http
           .post(
             Uri.parse('${baseUrl}login/'),
             body: {'username': username.trim(), 'password': password},
           )
           .timeout(_loginTimeout);
+    } catch (_) {
+      response = null;
+    }
 
+    if (response != null) {
+      // O servidor respondeu!
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final token = data['token']?.toString() ?? 'token_api';
         await prefs.setString('token', token);
         await prefs.setString('logged_username', cleanUser);
+        await prefs.setString('logged_password', password);
         return true;
       }
-    } catch (_) {
-      // Servidor offline ou sem internet: utiliza autenticação local integrada
+      // Se o servidor respondeu com qualquer outro código (400, 401, 403, etc.),
+      // significa que o usuário ou senha estão inválidos.
+      // BLOQUEIA O ACESSO IMEDIATAMENTE (NUNCA permite mock de conta alheia)!
+      return false;
     }
 
-    // Autenticação no backend local integrado
-    final isNutriLogin = cleanUser == 'juliana.nutri' ||
-        cleanUser == 'juliana' ||
-        cleanUser == 'nutri' ||
-        cleanUser == 'dra.juliana' ||
-        cleanUser == 'admin' ||
-        cleanUser.contains('nutri') ||
-        cleanUser.contains('juliana');
+    // FALLBACK OFFLINE ESTRITO:
+    // Só é permitido se o dispositivo estiver completamente sem internet (servidor inalcançável)
+    // E o usuário já tiver realizado login com sucesso anteriormente NESTE dispositivo
+    // com exatamente a mesma senha salva.
+    final savedUser = prefs.getString('logged_username')?.toLowerCase();
+    final savedPass = prefs.getString('logged_password');
+    final savedToken = prefs.getString('token');
 
-    if (isNutriLogin) {
-      await prefs.setString('token', 'local_token_nutri');
-      await prefs.setString('tipo_usuario', 'NUTRI');
-      await prefs.setString('logged_username', cleanUser);
-      return true;
-    }
-
-    // Verifica se é paciente.teste ou paciente cadastrado localmente
-    final pacientes = await _lerPacientesLocais(prefs);
-    final existePaciente = cleanUser == 'paciente.teste' ||
-        pacientes.any((p) => (p['username']?.toString().toLowerCase() ?? '') == cleanUser);
-
-    if (existePaciente) {
-      await prefs.setString('token', 'local_token_cliente');
-      await prefs.setString('tipo_usuario', 'CLIENTE');
-      await prefs.setString('logged_username', cleanUser);
+    if (savedUser != null &&
+        savedUser == cleanUser &&
+        savedPass != null &&
+        savedPass == password &&
+        savedToken != null &&
+        !savedToken.startsWith('local_token_')) {
       return true;
     }
 
     return false;
+  }
+
+  /// Altera a senha do usuário autenticado no backend Django.
+  static Future<Map<String, dynamic>> alterarSenha({
+    required String senhaAtual,
+    required String novaSenha,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = await _obterTokenAtivo(prefs);
+
+    if (token == null || token.startsWith('local_token_')) {
+      return {
+        'sucesso': false,
+        'mensagem': 'Sessão offline ou inválida. Conecte-se à internet para alterar sua senha no servidor.',
+      };
+    }
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('${baseUrl}alterar-senha/'),
+            headers: {
+              'Authorization': 'Token $token',
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode({
+              'senha_atual': senhaAtual,
+              'nova_senha': novaSenha,
+            }),
+          )
+          .timeout(_timeout);
+
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      if (response.statusCode == 200) {
+        if (data is Map && data['token'] != null) {
+          await prefs.setString('token', data['token'].toString());
+        }
+        await prefs.setString('logged_password', novaSenha);
+        return {
+          'sucesso': true,
+          'mensagem': (data is Map ? data['detail'] : null) ?? 'Senha alterada com sucesso!',
+        };
+      }
+
+      String msg = 'Erro ao alterar senha. Verifique a senha atual.';
+      if (data is Map && data['detail'] != null) {
+        msg = data['detail'].toString();
+      }
+      return {'sucesso': false, 'mensagem': msg};
+    } catch (_) {
+      return {
+        'sucesso': false,
+        'mensagem': 'Erro de conexão com o servidor. Verifique sua internet.',
+      };
+    }
+  }
+
+  /// Atualiza os dados de perfil (nome, e-mail) do usuário autenticado na API
+  static Future<Map<String, dynamic>> atualizarMeuPerfil({
+    required String nome,
+    required String email,
+    String? fotoUrl,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = await _obterTokenAtivo(prefs);
+
+    final cleanNome = nome.trim();
+    final cleanEmail = email.trim().toLowerCase();
+
+    if (token != null && !token.startsWith('local_token_')) {
+      try {
+        final bodyData = <String, dynamic>{
+          'nome': cleanNome,
+          'email': cleanEmail,
+        };
+        if (fotoUrl != null) {
+          bodyData['foto_url'] = fotoUrl.trim();
+        }
+
+        final response = await http
+            .patch(
+              Uri.parse('${baseUrl}meu-perfil/'),
+              headers: {
+                'Authorization': 'Token $token',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode(bodyData),
+            )
+            .timeout(_timeout);
+
+        if (response.statusCode == 200) {
+          await prefs.setString('config_nutri_nome', cleanNome);
+          await prefs.setString('config_nutri_email', cleanEmail);
+          return {'sucesso': true};
+        }
+
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        final msg = data is Map ? (data['detail'] ?? 'Erro ao salvar perfil') : 'Erro ao salvar perfil';
+        return {'sucesso': false, 'mensagem': msg.toString()};
+      } catch (_) {}
+    }
+
+    await prefs.setString('config_nutri_nome', cleanNome);
+    await prefs.setString('config_nutri_email', cleanEmail);
+    return {'sucesso': true};
   }
 
   static Future<void> logout() async {
@@ -222,6 +324,37 @@ class ApiService {
     return false;
   }
 
+  static Future<bool> excluirPaciente(int id, {String? email}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = await _obterTokenAtivo(prefs);
+
+    if (token != null && !token.startsWith('local_token_')) {
+      try {
+        final query = (email != null && email.isNotEmpty) ? '?email=${Uri.encodeComponent(email)}' : '';
+        await http
+            .delete(
+              Uri.parse('${baseUrl}pacientes/$id/$query'),
+              headers: {'Authorization': 'Token $token'},
+            )
+            .timeout(_timeout);
+      } catch (_) {}
+    }
+
+    // Exclui do cache local de pacientes
+    final pacientes = await _lerPacientesLocais(prefs);
+    pacientes.removeWhere((p) => p['id'] == id || (email != null && p['email']?.toString().toLowerCase() == email.toLowerCase()));
+    await _salvarPacientesLocais(prefs, pacientes);
+
+    // Exclui do cache local de pré-cadastros se houver
+    if (email != null && email.isNotEmpty) {
+      final preCadastros = await _lerPreCadastrosLocais(prefs);
+      preCadastros.removeWhere((c) => (c['email']?.toString().toLowerCase().trim() ?? '') == email.toLowerCase().trim());
+      await prefs.setString(_localPreCadastrosKey, jsonEncode(preCadastros));
+    }
+
+    return true;
+  }
+
   static Future<Map<String, dynamic>?> salvarRefeicao(Map<String, dynamic> data, {String? id}) async {
     final prefs = await SharedPreferences.getInstance();
     final token = await _obterTokenAtivo(prefs);
@@ -307,55 +440,70 @@ class ApiService {
     return true;
   }
 
-  static Future<bool> preCadastrarPaciente(String nome, String email, String dataNascimento) async {
+  static Future<Map<String, dynamic>> preCadastrarPaciente(String nome, String email, String dataNascimento) async {
+    final cleanNome = nome.trim();
+    final cleanEmail = email.trim().toLowerCase();
+    final cleanData = dataNascimento.trim();
+
     final prefs = await SharedPreferences.getInstance();
     final token = await _obterTokenAtivo(prefs);
 
-    if (token != null && !token.startsWith('local_token_')) {
-      try {
-        final response = await http
-            .post(
-              Uri.parse('${baseUrl}precadastro/'),
-              headers: {'Authorization': 'Token $token', 'Content-Type': 'application/json'},
-              body: jsonEncode({
-                'nome': nome,
-                'email': email,
-                'data_nascimento': dataNascimento,
-              }),
-            )
-            .timeout(_timeout);
-        if (response.statusCode == 201) return true;
-      } catch (_) {}
+    if (token == null || token.startsWith('local_token_')) {
+      return {
+        'sucesso': false,
+        'mensagem': 'Sessão desconectada da nuvem. Faça login online para que seus pacientes fiquem registrados no servidor.',
+      };
     }
 
-    // Salva no pré-cadastro local e já adiciona na lista de pacientes
-    final preCadastros = await _lerPreCadastrosLocais(prefs);
-    preCadastros.add({
-      'nome': nome.trim(),
-      'email': email.trim().toLowerCase(),
-      'data_nascimento': dataNascimento.trim(),
-    });
-    await prefs.setString(_localPreCadastrosKey, jsonEncode(preCadastros));
+    try {
+      final response = await http
+          .post(
+            Uri.parse('${baseUrl}precadastro/'),
+            headers: {'Authorization': 'Token $token', 'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'nome': cleanNome,
+              'email': cleanEmail,
+              'data_nascimento': cleanData,
+            }),
+          )
+          .timeout(_timeout);
 
-    final pacientes = await _lerPacientesLocais(prefs);
-    final novoId = DateTime.now().millisecondsSinceEpoch % 100000;
-    final usernameGerado = nome.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '.');
-    pacientes.add({
-      'id': novoId,
-      'nome': nome.trim(),
-      'username': usernameGerado,
-      'email': email.trim(),
-      'status_financeiro': 'pago',
-      'valor_mensalidade': 400.0,
-      'meta_calorica': 2000.0,
-      'plano_alimentar': [],
-      'registros_diarios': [],
-    });
-    await _salvarPacientesLocais(prefs, pacientes);
-    return true;
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        // Salva também no pré-cadastro local para acesso rápido
+        final preCadastros = await _lerPreCadastrosLocais(prefs);
+        preCadastros.removeWhere((c) => (c['email']?.toString().toLowerCase().trim() ?? '') == cleanEmail);
+        preCadastros.add({
+          'nome': cleanNome,
+          'email': cleanEmail,
+          'data_nascimento': cleanData,
+        });
+        await prefs.setString(_localPreCadastrosKey, jsonEncode(preCadastros));
+
+        return {'sucesso': true};
+      }
+
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      String msg = 'Erro ao cadastrar paciente no servidor.';
+      if (data is Map) {
+        if (data['detail'] != null) {
+          msg = data['detail'].toString();
+        } else if (data['email'] != null) {
+          msg = 'E-mail: ${data['email']}';
+        } else if (data['data_nascimento'] != null) {
+          msg = 'Data de nascimento inválida.';
+        }
+      }
+      return {'sucesso': false, 'mensagem': msg};
+    } catch (_) {
+      return {
+        'sucesso': false,
+        'mensagem': 'Erro de conexão com o servidor. O paciente não foi salvo na nuvem.',
+      };
+    }
   }
 
-  static Future<bool> validarCadastro(String nome, String email, String dataNascimento) async {
+  static Future<Map<String, dynamic>> validarCadastro(String nome, String email, String dataNascimento) async {
+    final cleanNome = nome.trim();
     final cleanEmail = email.trim().toLowerCase();
     final cleanData = dataNascimento.trim();
 
@@ -365,39 +513,39 @@ class ApiService {
             Uri.parse('${baseUrl}cadastro/validar/'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
-              'nome': nome.trim(),
+              'nome': cleanNome,
               'email': cleanEmail,
               'data_nascimento': cleanData,
             }),
           )
           .timeout(_timeout);
 
-      // Se o backend respondeu com sucesso, está autorizado
-      if (response.statusCode == 200) return true;
-
-      // Se o backend explicitamente rejeitou (404 = e-mail não pré-cadastrado ou 400 = dados inválidos)
-      if (response.statusCode == 404 || response.statusCode == 400) {
-        return false;
+      if (response.statusCode == 200) {
+        return {'sucesso': true};
       }
-    } catch (_) {}
 
-    // Fallback estrito no armazenamento local (apenas se estiver offline sem conexão com o servidor)
-    final prefs = await SharedPreferences.getInstance();
-    final preCadastros = await _lerPreCadastrosLocais(prefs);
-    final existe = preCadastros.any(
-      (c) => (c['email']?.toString().toLowerCase().trim() ?? '') == cleanEmail,
-    );
-    // Somente valida se o e-mail estiver explicitamente salvo no pré-cadastro local da nutri
-    return existe;
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      String msg = 'E-mail não autorizado ou não encontrado no pré-cadastro da nutricionista.';
+      if (data is Map && data['detail'] != null) {
+        msg = data['detail'].toString();
+      }
+      return {'sucesso': false, 'mensagem': msg};
+    } catch (_) {
+      return {
+        'sucesso': false,
+        'mensagem': 'Erro de conexão com o servidor ao validar seus dados. Verifique sua conexão com a internet.',
+      };
+    }
   }
 
-  static Future<bool> finalizarCadastro(
+  static Future<Map<String, dynamic>> finalizarCadastro(
     String nome,
     String email,
     String dataNascimento,
     String username,
     String senha,
   ) async {
+    final cleanNome = nome.trim();
     final cleanEmail = email.trim().toLowerCase();
     final cleanUser = username.trim().toLowerCase();
     final cleanData = dataNascimento.trim();
@@ -408,7 +556,7 @@ class ApiService {
             Uri.parse('${baseUrl}cadastro/finalizar/'),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({
-              'nome': nome.trim(),
+              'nome': cleanNome,
               'email': cleanEmail,
               'data_nascimento': cleanData,
               'username': cleanUser,
@@ -417,49 +565,22 @@ class ApiService {
           )
           .timeout(_timeout);
 
-      if (response.statusCode == 201) return true;
-      if (response.statusCode == 400 || response.statusCode == 404) return false;
-    } catch (_) {}
+      if (response.statusCode == 201) {
+        return {'sucesso': true};
+      }
 
-    final prefs = await SharedPreferences.getInstance();
-    final preCadastros = await _lerPreCadastrosLocais(prefs);
-    final preIndex = preCadastros.indexWhere(
-      (c) => (c['email']?.toString().toLowerCase().trim() ?? '') == cleanEmail,
-    );
-
-    // Se nem localmente o email está pré-cadastrado, não permite finalizar!
-    if (preIndex < 0) return false;
-
-    await _garantirDadosLocaisIniciais(prefs);
-    final pacientes = await _lerPacientesLocais(prefs);
-    final index = pacientes.indexWhere(
-      (p) => (p['email']?.toString().toLowerCase().trim() ?? '') == cleanEmail,
-    );
-
-    if (index >= 0) {
-      final p = Map<String, dynamic>.from(pacientes[index] as Map);
-      p['username'] = cleanUser;
-      p['nome'] = nome.trim();
-      pacientes[index] = p;
-    } else {
-      pacientes.add({
-        'id': DateTime.now().millisecondsSinceEpoch % 100000,
-        'nome': nome.trim(),
-        'username': cleanUser,
-        'email': cleanEmail,
-        'status_financeiro': 'pago',
-        'valor_mensalidade': 400.0,
-        'meta_calorica': 2000.0,
-        'plano_alimentar': [],
-        'registros_diarios': [],
-      });
+      final data = jsonDecode(utf8.decode(response.bodyBytes));
+      String msg = 'Erro ao finalizar o cadastro. O nome de usuário já pode existir.';
+      if (data is Map && data['detail'] != null) {
+        msg = data['detail'].toString();
+      }
+      return {'sucesso': false, 'mensagem': msg};
+    } catch (_) {
+      return {
+        'sucesso': false,
+        'mensagem': 'Erro de conexão com o servidor ao criar sua conta. Verifique sua internet.',
+      };
     }
-    await _salvarPacientesLocais(prefs, pacientes);
-
-    // Remove do pré-cadastro pois agora o cadastro foi concluído
-    preCadastros.removeAt(preIndex);
-    await prefs.setString(_localPreCadastrosKey, jsonEncode(preCadastros));
-    return true;
   }
 
   static Future<List<dynamic>> getRegistrosDiarios(String dataStr, {int? pacienteId}) async {
