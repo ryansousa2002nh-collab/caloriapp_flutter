@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/chat_model.dart';
+import 'api_service.dart';
 import 'lembretes_service.dart';
 
 class ChatService extends ChangeNotifier {
@@ -10,6 +11,7 @@ class ChatService extends ChangeNotifier {
   factory ChatService() => _instancia;
   ChatService._interno() {
     carregarMensagens();
+    unawaited(sincronizarComBackend());
   }
 
   static const String _keyMensagens = 'nutri_chat_mensagens_clean_v1';
@@ -44,9 +46,46 @@ class ChatService extends ChangeNotifier {
     } catch (_) {}
   }
 
+  /// Sincroniza as mensagens com a API em nuvem e notifica o dispositivo caso receba mensagem nova
+  Future<void> sincronizarComBackend({int? pacienteId}) async {
+    try {
+      final listJson = await ApiService.getMensagensChat(pacienteId: pacienteId);
+      if (listJson.isEmpty) return;
+
+      bool houveMudanca = false;
+      for (final item in listJson) {
+        final novaMsg = MensagemChat.fromJson(Map<String, dynamic>.from(item as Map));
+        final index = _mensagens.indexWhere((m) => m.id == novaMsg.id);
+        if (index >= 0) {
+          if (_mensagens[index].lida != novaMsg.lida) {
+            _mensagens[index] = novaMsg;
+            houveMudanca = true;
+          }
+        } else {
+          _mensagens.add(novaMsg);
+          houveMudanca = true;
+
+          // Dispara notificação no celular caso seja mensagem recebida
+          final titulo = novaMsg.isNutri
+              ? '👩‍⚕️ Dra. Juliana Braz (Nutri)'
+              : '💬 Nova mensagem de ${novaMsg.pacienteNome}';
+          await LembretesService.dispararNotificacaoChat(
+            titulo: titulo,
+            corpo: novaMsg.texto,
+          );
+        }
+      }
+
+      if (houveMudanca) {
+        _mensagens.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+        await _salvarMensagens();
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
   /// Retorna as mensagens de um paciente específico (ordenadas por data)
   List<MensagemChat> obterMensagens(int pacienteId, {String pacienteNome = 'Paciente'}) {
-    // Garante mensagem inicial de acolhimento da Dra. Juliana se for a primeira vez
     final mensagensDoPaciente = _mensagens.where((m) => m.pacienteId == pacienteId).toList();
 
     if (mensagensDoPaciente.isEmpty) {
@@ -110,6 +149,7 @@ class ChatService extends ChangeNotifier {
     if (alterou) {
       await _salvarMensagens();
       notifyListeners();
+      unawaited(ApiService.marcarMensagensLidasChat(pacienteId: pacienteId));
     }
   }
 
@@ -140,18 +180,16 @@ class ChatService extends ChangeNotifier {
     await _salvarMensagens();
     notifyListeners();
 
-    // Notificação imediata para quem recebeu
-    if (remetente == 'PACIENTE') {
-      // Notifica a Dra. Juliana
-      await LembretesService.dispararNotificacaoChat(
-        titulo: '💬 Nova mensagem de $pacienteNome',
-        corpo: cleanTexto,
-      );
+    // 1. Envia para o banco de dados na nuvem (API Django no Render)
+    unawaited(ApiService.enviarMensagemChat(
+      pacienteId: pacienteId,
+      texto: cleanTexto,
+    ));
 
-      // Se for enviado pelo paciente e estiver em modo de demonstração/teste,
-      // a Dra. Juliana responde após 2.5 segundos, gerando a notificação no celular
+    // 2. Notificação e resposta inteligente para demonstração
+    if (remetente == 'PACIENTE') {
       if (simularRespostaAutomatica) {
-        Timer(const Duration(milliseconds: 2600), () async {
+        Timer(const Duration(milliseconds: 2200), () async {
           final respostaTexto = _gerarRespostaClinicaInteligente(cleanTexto, pacienteNome);
           final msgNutri = MensagemChat(
             id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
@@ -168,7 +206,7 @@ class ChatService extends ChangeNotifier {
           await _salvarMensagens();
           notifyListeners();
 
-          // Notifica o celular do paciente (mesmo com o app fechado ou em segundo plano)
+          // Notifica o celular do paciente com a resposta
           await LembretesService.dispararNotificacaoChat(
             titulo: '👩‍⚕️ Dra. Juliana Braz (Nutri)',
             corpo: respostaTexto,
@@ -176,7 +214,7 @@ class ChatService extends ChangeNotifier {
         });
       }
     } else {
-      // Enviado pela Dra. Juliana -> Notifica o paciente
+      // Enviado pela Dra. Juliana -> Dispara notificação nativa no celular
       await LembretesService.dispararNotificacaoChat(
         titulo: '👩‍⚕️ Dra. Juliana Braz (Nutri)',
         corpo: cleanTexto,

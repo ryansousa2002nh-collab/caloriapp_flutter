@@ -55,11 +55,21 @@ class LembretesService {
 
       await _notificationsPlugin.initialize(settings: initSettings);
 
-      // Solicita permissão no Android 13+
+      // Solicita permissão no Android 13+ e cria o canal em alta prioridade
       if (!kIsWeb && Platform.isAndroid) {
         final androidImpl = _notificationsPlugin
             .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
         await androidImpl?.requestNotificationsPermission();
+        await androidImpl?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            'nutri_chat_notificacoes',
+            'Mensagens da Nutri+',
+            description: 'Notificações em tempo real do chat entre Nutricionista e Paciente',
+            importance: Importance.max,
+            playSound: true,
+            enableVibration: true,
+          ),
+        );
       }
 
       _inicializado = true;

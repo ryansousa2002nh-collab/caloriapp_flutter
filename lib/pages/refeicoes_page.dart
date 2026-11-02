@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/apple_theme_toggle.dart';
 import 'chat_nutri_page.dart';
+import 'conversas_nutri_page.dart';
 
 class _IngredienteForm {
   String alimentoNome = BancoAlimentos.lista.first.nome;
@@ -159,23 +160,33 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
             AnimatedBuilder(
               animation: ChatService(),
               builder: (context, _) {
-                final naoLidas = ChatService().obterTotalNaoLidasParaPaciente(_paciente.id);
+                final isNutri = _dadosService.tipoUsuarioLogado == 'NUTRI';
+                final naoLidas = isNutri
+                    ? ChatService().obterTotalNaoLidasParaNutri()
+                    : ChatService().obterTotalNaoLidasParaPaciente(_paciente.id);
                 return Stack(
                   alignment: Alignment.center,
                   children: [
                     IconButton(
                       icon: const Icon(Icons.chat_bubble_outline),
-                      tooltip: 'Falar com a Nutri',
+                      tooltip: isNutri ? 'Mensagens' : 'Falar com a Nutri',
                       onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ChatNutriPage(
-                              paciente: _paciente,
-                              isNutri: false,
+                        if (isNutri) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const ConversasNutriPage()),
+                          );
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChatNutriPage(
+                                paciente: _paciente,
+                                isNutri: false,
+                              ),
                             ),
-                          ),
-                        );
+                          );
+                        }
                       },
                     ),
                     if (naoLidas > 0)
@@ -383,18 +394,28 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
         floatingActionButton: AnimatedBuilder(
           animation: ChatService(),
           builder: (context, _) {
-            final naoLidas = ChatService().obterTotalNaoLidasParaPaciente(_paciente.id);
+            final isNutri = _dadosService.tipoUsuarioLogado == 'NUTRI';
+            final naoLidas = isNutri
+                ? ChatService().obterTotalNaoLidasParaNutri()
+                : ChatService().obterTotalNaoLidasParaPaciente(_paciente.id);
             return FloatingActionButton.extended(
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ChatNutriPage(
-                      paciente: _paciente,
-                      isNutri: false,
+                if (isNutri) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ConversasNutriPage()),
+                  );
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ChatNutriPage(
+                        paciente: _paciente,
+                        isNutri: false,
+                      ),
                     ),
-                  ),
-                );
+                  );
+                }
               },
               backgroundColor: AppColors.verde,
               icon: Badge(
@@ -403,9 +424,9 @@ class _RefeicoesPageState extends State<RefeicoesPage> {
                 backgroundColor: AppColors.rosaVibrante,
                 child: const Icon(Icons.chat_outlined, color: Colors.white),
               ),
-              label: const Text(
-                'Falar com a Nutri',
-                style: TextStyle(
+              label: Text(
+                isNutri ? 'Mensagens' : 'Falar com a Nutri',
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),

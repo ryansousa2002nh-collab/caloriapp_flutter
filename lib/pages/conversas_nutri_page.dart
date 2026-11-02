@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import '../models/paciente_model.dart';
 import '../services/chat_service.dart';
 import '../services/dados_service.dart';
 import '../theme/app_theme.dart';
@@ -14,15 +16,25 @@ class ConversasNutriPage extends StatefulWidget {
 class _ConversasNutriPageState extends State<ConversasNutriPage> {
   final DadosService _dadosService = DadosService();
   final ChatService _chatService = ChatService();
+  Timer? _pollingTimer;
 
   @override
   void initState() {
     super.initState();
     _chatService.addListener(_atualizar);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _chatService.sincronizarComBackend();
+    });
+    _pollingTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (mounted) {
+        _chatService.sincronizarComBackend();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _chatService.removeListener(_atualizar);
     super.dispose();
   }
@@ -33,7 +45,23 @@ class _ConversasNutriPageState extends State<ConversasNutriPage> {
 
   @override
   Widget build(BuildContext context) {
-    final pacientes = _dadosService.pacientes;
+    final listaPacientes = List<PacienteModel>.from(_dadosService.pacientes);
+    final pacientesIds = listaPacientes.map((p) => p.id).toSet();
+
+    for (final msg in _chatService.todasMensagens) {
+      if (!pacientesIds.contains(msg.pacienteId)) {
+        listaPacientes.add(
+          PacienteModel(
+            id: msg.pacienteId,
+            nome: msg.pacienteNome.isNotEmpty ? msg.pacienteNome : 'Paciente ${msg.pacienteId}',
+            usuario: 'paciente_${msg.pacienteId}',
+            email: '',
+            statusFinanceiro: StatusFinanceiro.pago,
+          ),
+        );
+        pacientesIds.add(msg.pacienteId);
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -42,7 +70,7 @@ class _ConversasNutriPageState extends State<ConversasNutriPage> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
-      body: pacientes.isEmpty
+      body: listaPacientes.isEmpty
           ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -58,14 +86,14 @@ class _ConversasNutriPageState extends State<ConversasNutriPage> {
             )
           : ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              itemCount: pacientes.length,
+              itemCount: listaPacientes.length,
               separatorBuilder: (context, _) => Divider(
                 height: 1,
                 color: AppColors.getBorda(context),
                 indent: 68,
               ),
               itemBuilder: (context, index) {
-                final paciente = pacientes[index];
+                final paciente = listaPacientes[index];
                 final ultimaMsg = _chatService.obterUltimaMensagem(paciente.id);
                 final naoLidas = _chatService.obterNaoLidasDoPaciente(paciente.id);
 

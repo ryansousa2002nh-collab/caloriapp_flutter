@@ -922,6 +922,106 @@ class ApiService {
     await _salvarPostagensComunidadeLocais(prefs, []);
   }
 
+  // --- Módulo Chat / Mensagens ---
+
+  static const String _localChatKey = 'nutri_chat_mensagens_clean_v1';
+
+  /// Busca as mensagens do chat da API (ou do armazenamento local caso offline)
+  static Future<List<dynamic>> getMensagensChat({int? pacienteId}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = await _obterTokenAtivo(prefs);
+
+    if (token != null && !token.startsWith('local_token_')) {
+      try {
+        final query = pacienteId != null && pacienteId > 0 ? '?paciente_id=$pacienteId' : '';
+        final response = await http
+            .get(
+              Uri.parse('${baseUrl}mensagens/$query'),
+              headers: {'Authorization': 'Token $token'},
+            )
+            .timeout(const Duration(seconds: 15));
+
+        if (response.statusCode == 200) {
+          final list = jsonDecode(utf8.decode(response.bodyBytes)) as List<dynamic>;
+          return list;
+        }
+      } catch (_) {}
+    }
+
+    // Fallback: lê do armazenamento local
+    final raw = prefs.getString(_localChatKey);
+    if (raw != null && raw.isNotEmpty) {
+      try {
+        return jsonDecode(raw) as List<dynamic>;
+      } catch (_) {}
+    }
+    return [];
+  }
+
+  /// Envia uma nova mensagem no chat via API do Render
+  static Future<Map<String, dynamic>?> enviarMensagemChat({
+    required int pacienteId,
+    required String texto,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = await _obterTokenAtivo(prefs);
+
+    if (token != null && !token.startsWith('local_token_')) {
+      try {
+        final bodyData = <String, dynamic>{
+          'texto': texto,
+        };
+        if (pacienteId > 0) {
+          bodyData['paciente_id'] = pacienteId;
+          bodyData['destinatario_id'] = pacienteId;
+        }
+
+        final response = await http
+            .post(
+              Uri.parse('${baseUrl}mensagens/'),
+              headers: {
+                'Authorization': 'Token $token',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode(bodyData),
+            )
+            .timeout(const Duration(seconds: 15));
+
+        if (response.statusCode == 200 || response.statusCode == 201) {
+          return jsonDecode(utf8.decode(response.bodyBytes)) as Map<String, dynamic>;
+        }
+      } catch (_) {}
+    }
+
+    return null;
+  }
+
+  /// Marca as mensagens como lidas na API
+  static Future<void> marcarMensagensLidasChat({int? pacienteId}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = await _obterTokenAtivo(prefs);
+
+    if (token != null && !token.startsWith('local_token_')) {
+      try {
+        final bodyData = <String, dynamic>{};
+        if (pacienteId != null && pacienteId > 0) {
+          bodyData['paciente_id'] = pacienteId;
+        }
+
+        await http
+            .post(
+              Uri.parse('${baseUrl}mensagens/marcar_lidas/'),
+              headers: {
+                'Authorization': 'Token $token',
+                'Content-Type': 'application/json',
+              },
+              body: jsonEncode(bodyData),
+            )
+            .timeout(const Duration(seconds: 10));
+      } catch (_) {}
+    }
+  }
+
   // --- Helpers do Banco Local Integrado ---
 
   static Future<List<dynamic>> _lerPacientesLocais(SharedPreferences prefs) async {

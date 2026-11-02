@@ -30,13 +30,13 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
   late List<RefeicaoModel> _refeicoes;
 
   // Estado do formulário de refeição
-  String _tipo = 'Café da manhã';
+  String _tipo = '';
   String _horario = '08:00';
   String _observacoes = '';
   List<ItemRefeicaoModel> _ingredientesForm = [
     ItemRefeicaoModel(
-      alimentoNome: BancoAlimentos.lista.first.nome,
-      gramas: 100,
+      alimentoNome: null,
+      gramas: 0,
     ),
   ];
   int?
@@ -100,8 +100,8 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
     setState(() {
       _ingredientesForm.add(
         ItemRefeicaoModel(
-          alimentoNome: BancoAlimentos.lista.first.nome,
-          gramas: 100,
+          alimentoNome: null,
+          gramas: 0,
         ),
       );
     });
@@ -113,8 +113,8 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
       if (_ingredientesForm.isEmpty) {
         _ingredientesForm.add(
           ItemRefeicaoModel(
-            alimentoNome: BancoAlimentos.lista.first.nome,
-            gramas: 100,
+            alimentoNome: null,
+            gramas: 0,
           ),
         );
       }
@@ -130,8 +130,8 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
       _observacoes = '';
       _ingredientesForm = [
         ItemRefeicaoModel(
-          alimentoNome: BancoAlimentos.lista.first.nome,
-          gramas: 100,
+          alimentoNome: null,
+          gramas: 0,
         ),
       ];
       _indiceEmEdicao = null;
@@ -1277,6 +1277,7 @@ class _CriarDietaPageState extends State<CriarDietaPage> {
                 child: DropdownButtonFormField<String>(
                   key: ObjectKey(item),
                   initialValue: item.alimentoNome,
+                  hint: const Text('Selecione o alimento', style: TextStyle(fontSize: 12)),
                   isExpanded: true,
                   decoration: const InputDecoration(
                     labelText: 'Alimento',

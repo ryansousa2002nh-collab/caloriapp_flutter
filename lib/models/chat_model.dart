@@ -29,18 +29,42 @@ class MensagemChat {
   }
 
   factory MensagemChat.fromJson(Map<String, dynamic> json) {
+    final tipoRemetente = json['remetente_tipo']?.toString().toUpperCase() ??
+        json['remetente']?.toString().toUpperCase() ??
+        'PACIENTE';
+    final isNutri = tipoRemetente == 'NUTRI';
+
+    int pId = 1;
+    if (json['paciente_id'] != null) {
+      pId = int.tryParse(json['paciente_id'].toString()) ?? 1;
+    } else if (isNutri) {
+      pId = int.tryParse(json['destinatario']?.toString() ?? '1') ?? 1;
+    } else {
+      pId = int.tryParse(json['remetente']?.toString() ?? '1') ?? 1;
+    }
+
+    final pNome = json['paciente_nome']?.toString() ??
+        (isNutri ? json['destinatario_nome']?.toString() : json['remetente_nome']?.toString()) ??
+        'Paciente';
+
+    final remNome = json['remetente_nome']?.toString() ??
+        (isNutri ? 'Dra. Juliana Braz' : pNome);
+
+    DateTime dataHora = DateTime.now();
+    if (json['data_criacao'] != null) {
+      dataHora = DateTime.tryParse(json['data_criacao'].toString()) ?? DateTime.now();
+    } else if (json['timestamp'] != null) {
+      dataHora = DateTime.tryParse(json['timestamp'].toString()) ?? DateTime.now();
+    }
+
     return MensagemChat(
       id: json['id']?.toString() ?? 'msg_${DateTime.now().millisecondsSinceEpoch}',
-      pacienteId: json['paciente_id'] is int
-          ? json['paciente_id'] as int
-          : int.tryParse(json['paciente_id']?.toString() ?? '1') ?? 1,
-      pacienteNome: json['paciente_nome']?.toString() ?? 'Paciente',
-      remetente: json['remetente']?.toString() ?? 'PACIENTE',
-      remetenteNome: json['remetente_nome']?.toString() ?? 'Paciente',
+      pacienteId: pId,
+      pacienteNome: pNome,
+      remetente: isNutri ? 'NUTRI' : 'PACIENTE',
+      remetenteNome: remNome,
       texto: json['texto']?.toString() ?? '',
-      timestamp: json['timestamp'] != null
-          ? DateTime.tryParse(json['timestamp'].toString()) ?? DateTime.now()
-          : DateTime.now(),
+      timestamp: dataHora,
       lida: json['lida'] == true,
     );
   }
@@ -80,4 +104,3 @@ class MensagemChat {
     );
   }
 }
-

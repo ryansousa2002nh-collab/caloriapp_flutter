@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/chat_model.dart';
 import '../models/paciente_model.dart';
@@ -36,6 +37,8 @@ class _ChatNutriPageState extends State<ChatNutriPage> {
     'Quantidade de água recomendada 💧',
   ];
 
+  Timer? _pollingTimer;
+
   @override
   void initState() {
     super.initState();
@@ -43,11 +46,19 @@ class _ChatNutriPageState extends State<ChatNutriPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _marcarLidas();
       _scrollParaFim(animar: false);
+      _chatService.sincronizarComBackend(pacienteId: widget.paciente.id);
+    });
+
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (mounted) {
+        _chatService.sincronizarComBackend(pacienteId: widget.paciente.id);
+      }
     });
   }
 
   @override
   void dispose() {
+    _pollingTimer?.cancel();
     _chatService.removeListener(_onMensagensAtualizadas);
     _mensagemController.dispose();
     _scrollController.dispose();
