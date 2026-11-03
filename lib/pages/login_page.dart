@@ -38,6 +38,10 @@ class _LoginPageState extends State<LoginPage>
     BiometriaService.isBiometriaAtiva().then((ativa) {
       if (ativa && mounted) {
         setState(() => _podeBiometria = true);
+        // Se a biometria já estiver ativada, dispara a verificação automaticamente na abertura
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _fazerLoginComBiometria(automatico: true);
+        });
       }
     });
 
@@ -51,21 +55,70 @@ class _LoginPageState extends State<LoginPage>
     _animationController.forward();
   }
 
-  Future<void> _fazerLoginComBiometria() async {
+  Future<void> _fazerLoginComBiometria({bool automatico = false}) async {
     final autenticou = await BiometriaService.autenticar(
-      motivo: 'Toque no sensor para entrar rapidamente no Nutri+',
+      motivo: 'Toque no sensor biométrico para entrar rapidamente no Nutri+',
     );
-    if (autenticou) {
-      await _fazerLogin();
-    } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Autenticação biométrica não confirmada. Digite sua senha.',
+
+    if (!autenticou) {
+      if (!automatico && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Autenticação biométrica não confirmada. Digite sua senha.',
+            ),
           ),
-        ),
-      );
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _erro = '';
+      _carregando = true;
+    });
+
+    try {
+      // Valida o token do usuário salvo no cofre do aparelho diretamente no backend
+      // sem exigir e-mail nem senha nos campos de digitação.
+      final bioOk = await ApiService.validarBiometria();
+
+      if (!mounted) return;
+
+      if (bioOk) {
+        final tipoStr = await ApiService.getTipoUsuario() ?? 'NUTRI';
+        final dadosService = DadosService();
+        dadosService.setTipoUsuarioLogado(tipoStr);
+
+        await dadosService.carregarDadosLocaisCache();
+        unawaited(dadosService.sincronizarComBackend());
+
+        if (!mounted) return;
+        setState(() => _carregando = false);
+
+        if (tipoStr == 'NUTRI') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const PacientesPage()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const RefeicoesPage()),
+          );
+        }
+      } else {
+        setState(() {
+          _erro = 'Sessão biométrica expirada. Digite seu usuário e senha.';
+          _carregando = false;
+        });
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _erro = 'Não foi possível autenticar por biometria. Digite sua senha.';
+        _carregando = false;
+      });
     }
   }
 

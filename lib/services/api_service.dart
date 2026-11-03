@@ -88,6 +88,43 @@ class ApiService {
     return false;
   }
 
+  /// Valida o token biométrico armazenado no dispositivo diretamente no backend.
+  /// Não exige digitação de e-mail nem de senha.
+  static Future<bool> validarBiometria() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = await _obterTokenAtivo(prefs);
+
+    if (token == null || token.isEmpty) return false;
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('${baseUrl}login/biometria/'),
+            headers: {
+              'Authorization': 'Token $token',
+              'Content-Type': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        if (data['usuario'] != null) {
+          final user = data['usuario'];
+          if (user['tipo'] != null) {
+            await prefs.setString('tipo_usuario', user['tipo']);
+          }
+        }
+        return true;
+      }
+      return false;
+    } catch (_) {
+      // Fallback: se o servidor estiver aquecendo ou offline temporariamente,
+      // mas o usuário já tem token válido salvo neste aparelho:
+      return !token.startsWith('local_token_');
+    }
+  }
+
   /// Altera a senha do usuário autenticado no backend Django.
   static Future<Map<String, dynamic>> alterarSenha({
     required String senhaAtual,
