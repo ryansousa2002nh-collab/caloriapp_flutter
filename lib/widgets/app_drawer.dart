@@ -287,6 +287,7 @@ class AppDrawer extends StatelessWidget {
                 ativo: false,
                 corIcone: AppColors.vermelho,
                 onTap: () async {
+                  await ChatService().limpar();
                   await ApiService.logout();
                   if (!context.mounted) return;
                   Navigator.pushAndRemoveUntil(

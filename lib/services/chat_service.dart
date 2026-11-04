@@ -17,7 +17,25 @@ class ChatService extends ChangeNotifier {
   static const String _keyMensagens = 'nutri_chat_mensagens_clean_v1';
   final List<MensagemChat> _mensagens = [];
 
+  /// ID do paciente cuja conversa está aberta na tela neste exato momento.
+  /// Quando definido, silencia notificações locais para esta conversa.
+  static int? conversaAtivaPacienteId;
+
+  /// IDs de mensagens que já dispararam notificação nesta sessão para evitar repetições.
+  final Set<String> _notificadasIds = {};
+
   List<MensagemChat> get todasMensagens => List.unmodifiable(_mensagens);
+
+  /// Limpa as mensagens em memória e no armazenamento local (usado no logout/troca de usuário)
+  Future<void> limpar() async {
+    _mensagens.clear();
+    _notificadasIds.clear();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_keyMensagens);
+    } catch (_) {}
+    notifyListeners();
+  }
 
   /// Carrega as mensagens salvas no armazenamento local
   Future<void> carregarMensagens() async {
@@ -46,33 +64,79 @@ class ChatService extends ChangeNotifier {
     } catch (_) {}
   }
 
-  /// Sincroniza as mensagens com a API em nuvem e notifica o dispositivo caso receba mensagem nova
+  /// Sincroniza as mensagens com a API em nuvem e notifica estritamente o destinatário
   Future<void> sincronizarComBackend({int? pacienteId}) async {
     try {
       final listJson = await ApiService.getMensagensChat(pacienteId: pacienteId);
       if (listJson.isEmpty) return;
 
+      final prefs = await SharedPreferences.getInstance();
+      final tipoLogado = prefs.getString('tipo_usuario') ?? 'NUTRI';
+      final isNutriLogado = tipoLogado == 'NUTRI';
+
       bool houveMudanca = false;
+
       for (final item in listJson) {
         final novaMsg = MensagemChat.fromJson(Map<String, dynamic>.from(item as Map));
-        final index = _mensagens.indexWhere((m) => m.id == novaMsg.id);
+
+        // 1. Procura se a mensagem já existe por ID do servidor
+        int index = _mensagens.indexWhere((m) => m.id == novaMsg.id);
+
+        // 2. Se não achou por ID, procura se era uma mensagem local temporária recém-enviada
+        // que agora retornou com o ID definitivo do servidor
+        if (index < 0) {
+          index = _mensagens.indexWhere((m) =>
+            m.id.startsWith('msg_') &&
+            m.texto == novaMsg.texto &&
+            m.remetente == novaMsg.remetente &&
+            (pacienteId == null || m.pacienteId == novaMsg.pacienteId)
+          );
+        }
+
         if (index >= 0) {
-          if (_mensagens[index].lida != novaMsg.lida) {
+          // Atualiza a mensagem existente com os dados oficiais do servidor
+          if (_mensagens[index].id != novaMsg.id || _mensagens[index].lida != novaMsg.lida) {
             _mensagens[index] = novaMsg;
             houveMudanca = true;
           }
         } else {
+          // Mensagem realmente nova recebida do servidor
           _mensagens.add(novaMsg);
           houveMudanca = true;
 
-          // Dispara notificação no celular caso seja mensagem recebida
-          final titulo = novaMsg.isNutri
-              ? '👩‍⚕️ Dra. Juliana Braz (Nutri)'
-              : '💬 Nova mensagem de ${novaMsg.pacienteNome}';
-          await LembretesService.dispararNotificacaoChat(
-            titulo: titulo,
-            corpo: novaMsg.texto,
-          );
+          // REGRAS ESTRITAS DE NOTIFICAÇÃO:
+          // 1. Mensagem enviada pelo próprio usuário? NUNCA notifica quem enviou!
+          final enviadaPorMim = novaMsg.minhaMensagem ||
+              (isNutriLogado && novaMsg.remetente == 'NUTRI') ||
+              (!isNutriLogado && novaMsg.remetente == 'PACIENTE');
+          if (enviadaPorMim) continue;
+
+          // 2. Mensagem já lida? Não notifica.
+          if (novaMsg.lida) continue;
+
+          // 3. Usuário está com o chat aberto na tela desta mesma conversa? Silencia push nativo.
+          if (conversaAtivaPacienteId != null && conversaAtivaPacienteId == novaMsg.pacienteId) {
+            continue;
+          }
+
+          // 4. Já disparou notificação desta mensagem nesta sessão? Não duplica!
+          if (_notificadasIds.contains(novaMsg.id)) continue;
+          _notificadasIds.add(novaMsg.id);
+
+          // 5. Destinatários estritos:
+          //    - Nutricionista só é notificada sobre mensagens de pacientes.
+          //    - Paciente só é notificado sobre mensagens da nutricionista.
+          if (isNutriLogado && novaMsg.remetente == 'PACIENTE') {
+            await LembretesService.dispararNotificacaoChat(
+              titulo: '💬 Nova mensagem de ${novaMsg.pacienteNome}',
+              corpo: novaMsg.texto,
+            );
+          } else if (!isNutriLogado && novaMsg.remetente == 'NUTRI') {
+            await LembretesService.dispararNotificacaoChat(
+              titulo: '👩‍⚕️ Dra. Juliana Braz (Nutri)',
+              corpo: novaMsg.texto,
+            );
+          }
         }
       }
 
@@ -98,9 +162,10 @@ class ChatService extends ChangeNotifier {
         texto: 'Olá, $pacienteNome! Sou a Dra. Juliana Braz, sua nutricionista. Este é o nosso canal direto e exclusivo para tirar dúvidas sobre sua dieta, combinações de alimentos ou como você está se sentindo. Como posso te ajudar hoje? 🍏',
         timestamp: DateTime.now().subtract(const Duration(minutes: 5)),
         lida: true,
+        minhaMensagem: false,
+        paraMim: true,
+        notificar: false,
       );
-      _mensagens.add(msgInicial);
-      _salvarMensagens();
       return [msgInicial];
     }
 
@@ -149,24 +214,24 @@ class ChatService extends ChangeNotifier {
     if (alterou) {
       await _salvarMensagens();
       notifyListeners();
-      unawaited(ApiService.marcarMensagensLidasChat(pacienteId: pacienteId));
     }
+    unawaited(ApiService.marcarMensagensLidasChat(pacienteId: pacienteId));
   }
 
-  /// Envia uma nova mensagem no chat
+  /// Envia uma nova mensagem no chat e sincroniza com o servidor
   Future<void> enviarMensagem({
     required int pacienteId,
     required String pacienteNome,
     required String remetente, // 'PACIENTE' ou 'NUTRI'
     required String remetenteNome,
     required String texto,
-    bool simularRespostaAutomatica = true,
   }) async {
     final cleanTexto = texto.trim();
     if (cleanTexto.isEmpty) return;
 
+    final tempId = 'msg_${DateTime.now().millisecondsSinceEpoch}';
     final novaMensagem = MensagemChat(
-      id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+      id: tempId,
       pacienteId: pacienteId,
       pacienteNome: pacienteNome,
       remetente: remetente,
@@ -174,80 +239,33 @@ class ChatService extends ChangeNotifier {
       texto: cleanTexto,
       timestamp: DateTime.now(),
       lida: false,
+      minhaMensagem: true,
+      paraMim: false,
+      notificar: false,
     );
 
     _mensagens.add(novaMensagem);
     await _salvarMensagens();
     notifyListeners();
 
-    // 1. Envia para o banco de dados na nuvem (API Django no Render)
-    unawaited(ApiService.enviarMensagemChat(
-      pacienteId: pacienteId,
-      texto: cleanTexto,
-    ));
-
-    // 2. Notificação e resposta inteligente para demonstração
-    if (remetente == 'PACIENTE') {
-      if (simularRespostaAutomatica) {
-        Timer(const Duration(milliseconds: 2200), () async {
-          final respostaTexto = _gerarRespostaClinicaInteligente(cleanTexto, pacienteNome);
-          final msgNutri = MensagemChat(
-            id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
-            pacienteId: pacienteId,
-            pacienteNome: pacienteNome,
-            remetente: 'NUTRI',
-            remetenteNome: 'Dra. Juliana Braz',
-            texto: respostaTexto,
-            timestamp: DateTime.now(),
-            lida: false,
+    // Envia para o banco de dados na nuvem (API Django no Render)
+    try {
+      final resp = await ApiService.enviarMensagemChat(
+        pacienteId: pacienteId,
+        texto: cleanTexto,
+      );
+      if (resp != null && resp['id'] != null) {
+        final serverId = resp['id'].toString();
+        final idx = _mensagens.indexWhere((m) => m.id == tempId);
+        if (idx >= 0) {
+          _mensagens[idx] = _mensagens[idx].copyWith(
+            id: serverId,
+            minhaMensagem: true,
           );
-
-          _mensagens.add(msgNutri);
           await _salvarMensagens();
           notifyListeners();
-
-          // Notifica o celular do paciente com a resposta
-          await LembretesService.dispararNotificacaoChat(
-            titulo: '👩‍⚕️ Dra. Juliana Braz (Nutri)',
-            corpo: respostaTexto,
-          );
-        });
+        }
       }
-    } else {
-      // Enviado pela Dra. Juliana -> Dispara notificação nativa no celular
-      await LembretesService.dispararNotificacaoChat(
-        titulo: '👩‍⚕️ Dra. Juliana Braz (Nutri)',
-        corpo: cleanTexto,
-      );
-    }
-  }
-
-  /// Gera respostas clínicas inteligentes e personalizadas para a demonstração ao vivo
-  String _gerarRespostaClinicaInteligente(String textoPaciente, String nomePaciente) {
-    final t = textoPaciente.toLowerCase();
-
-    if (t.contains('água') || t.contains('agua') || t.contains('sede') || t.contains('beber')) {
-      return 'Olá $nomePaciente! Lembre-se de beber cerca de 35ml a 40ml de água por quilo de peso ao longo do dia. Evite ingerir grandes volumes durante o almoço e jantar para facilitar sua digestão! 💧';
-    }
-    if (t.contains('fome') || t.contains('saciedade') || t.contains('apetite')) {
-      return 'É comum sentir um pouco de apetite nas primeiras fases do plano. Uma dica valiosa: aumente as porções de folhas verdes e vegetais fibrosos nas refeições principais para elevar a saciedade sem extrapolar as calorias! 🥗';
-    }
-    if (t.contains('substituir') || t.contains('trocar') || t.contains('substituição') || t.contains('troca')) {
-      return 'Pode substituir sim! O segredo é trocar por alimentos do mesmo grupo nutricional: batata doce por mandioca, arroz por quinoa ou frango por peixe/ovos na mesma proporção em gramas/ml recomendada. 🍠';
-    }
-    if (t.contains('leite') || t.contains('iogurte') || t.contains('queijo')) {
-      return 'Para os laticínios da sua dieta, priorize sempre versões desnatadas ou o queijo minas frescal, que possuem menor densidade calórica e excelente teor de cálcio e proteínas! 🥛';
-    }
-    if (t.contains('horario') || t.contains('horário') || t.contains('refeição') || t.contains('refeicoes')) {
-      return 'Tente manter uma janela de 3 a 4 horas entre as refeições conforme prescrevi no seu plano. O mais importante é bater sua meta diária de macros com consistência! ⏰';
-    }
-    if (t.contains('doce') || t.contains('sobremesa') || t.contains('açúcar') || t.contains('acucar')) {
-      return 'Se der vontade de doce, inclua frutas com canela aquecidas (como banana ou maçã) ou um pedacinho de chocolate 70% cacau após o almoço! 🍎🍫';
-    }
-    if (t.contains('suplemento') || t.contains('whey') || t.contains('creatina')) {
-      return 'A suplementação deve ser tomada conforme orientamos na sua prescrição: o Whey pode ser usado no lanche ou pós-treino, e a creatina todos os dias (3g a 5g), inclusive nos dias de descanso! 💪';
-    }
-
-    return 'Olá $nomePaciente! Recebi sua mensagem. Já estou acompanhando seu diário alimentar e suas metas no app. Continue firme no plano e me avise como está se sentindo! 🌟';
+    } catch (_) {}
   }
 }

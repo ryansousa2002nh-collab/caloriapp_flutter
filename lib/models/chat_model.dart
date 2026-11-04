@@ -7,6 +7,9 @@ class MensagemChat {
   final String texto;
   final DateTime timestamp;
   final bool lida;
+  final bool minhaMensagem;
+  final bool paraMim;
+  final bool notificar;
 
   MensagemChat({
     required this.id,
@@ -17,6 +20,9 @@ class MensagemChat {
     required this.texto,
     required this.timestamp,
     this.lida = false,
+    this.minhaMensagem = false,
+    this.paraMim = false,
+    this.notificar = false,
   });
 
   bool get isNutri => remetente == 'NUTRI';
@@ -66,6 +72,9 @@ class MensagemChat {
       texto: json['texto']?.toString() ?? '',
       timestamp: dataHora,
       lida: json['lida'] == true,
+      minhaMensagem: json['minha_mensagem'] == true,
+      paraMim: json['para_mim'] == true,
+      notificar: json['notificar'] == true,
     );
   }
 
@@ -79,6 +88,9 @@ class MensagemChat {
       'texto': texto,
       'timestamp': timestamp.toIso8601String(),
       'lida': lida,
+      'minha_mensagem': minhaMensagem,
+      'para_mim': paraMim,
+      'notificar': notificar,
     };
   }
 
@@ -91,6 +103,9 @@ class MensagemChat {
     String? texto,
     DateTime? timestamp,
     bool? lida,
+    bool? minhaMensagem,
+    bool? paraMim,
+    bool? notificar,
   }) {
     return MensagemChat(
       id: id ?? this.id,
@@ -101,6 +116,9 @@ class MensagemChat {
       texto: texto ?? this.texto,
       timestamp: timestamp ?? this.timestamp,
       lida: lida ?? this.lida,
+      minhaMensagem: minhaMensagem ?? this.minhaMensagem,
+      paraMim: paraMim ?? this.paraMim,
+      notificar: notificar ?? this.notificar,
     );
   }
 }

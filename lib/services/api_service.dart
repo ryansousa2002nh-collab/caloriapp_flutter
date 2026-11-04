@@ -57,6 +57,10 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final token = data['token']?.toString() ?? 'token_api';
+        final previouslyLogged = prefs.getString('logged_username')?.toLowerCase();
+        if (previouslyLogged != null && previouslyLogged != cleanUser) {
+          await prefs.remove(_localChatKey);
+        }
         await prefs.setString('token', token);
         await prefs.setString('logged_username', cleanUser);
         await prefs.setString('logged_password', password);
@@ -236,6 +240,7 @@ class ApiService {
     await prefs.remove('tipo_usuario');
     await prefs.remove('logged_username');
     await prefs.remove('logged_password');
+    await prefs.remove(_localChatKey);
   }
 
   /// Caso a sessão tenha iniciado offline (`local_token_...`), tenta renovar o token
@@ -1197,7 +1202,7 @@ class ApiService {
 
         await http
             .post(
-              Uri.parse('${baseUrl}mensagens/marcar_lidas/'),
+              Uri.parse('${baseUrl}mensagens/marcar-lidas/'),
               headers: {
                 'Authorization': 'Token $token',
                 'Content-Type': 'application/json',

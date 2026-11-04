@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_service.dart';
+import '../services/chat_service.dart';
 import '../services/biometria_service.dart';
 import '../services/dados_service.dart';
 import '../services/lembretes_service.dart';
@@ -610,6 +611,7 @@ class _ConfiguracoesPageState extends State<ConfiguracoesPage> {
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.vermelho),
             onPressed: () async {
               Navigator.pop(dialogContext);
+              await ChatService().limpar();
               await ApiService.logout();
               if (!mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(

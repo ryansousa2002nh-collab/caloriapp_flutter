@@ -42,6 +42,7 @@ class _ChatNutriPageState extends State<ChatNutriPage> {
   @override
   void initState() {
     super.initState();
+    ChatService.conversaAtivaPacienteId = widget.paciente.id;
     _chatService.addListener(_onMensagensAtualizadas);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _marcarLidas();
@@ -58,6 +59,9 @@ class _ChatNutriPageState extends State<ChatNutriPage> {
 
   @override
   void dispose() {
+    if (ChatService.conversaAtivaPacienteId == widget.paciente.id) {
+      ChatService.conversaAtivaPacienteId = null;
+    }
     _pollingTimer?.cancel();
     _chatService.removeListener(_onMensagensAtualizadas);
     _mensagemController.dispose();
@@ -113,7 +117,6 @@ class _ChatNutriPageState extends State<ChatNutriPage> {
       remetente: remetente,
       remetenteNome: remetenteNome,
       texto: texto,
-      simularRespostaAutomatica: !isNutri, // Se for paciente testando, a Nutri responde automaticamente
     );
 
     _scrollParaFim(animar: true);
